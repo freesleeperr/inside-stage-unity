@@ -10,8 +10,12 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	#region Private Attributes
 
 	private SerializedDataParameter distance;
+	private SerializedDataParameter startDistance;
+	private SerializedDataParameter fullDensityDistance;
+	private SerializedDataParameter distanceFalloff;
 	private SerializedDataParameter baseHeight;
 	private SerializedDataParameter maximumHeight;
+	private SerializedDataParameter heightFalloff;
 
 	private SerializedDataParameter enableGround;
 	private SerializedDataParameter groundHeight;
@@ -22,6 +26,21 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	private SerializedDataParameter enableAPVContribution;
 	private SerializedDataParameter APVContributionWeight;
 #endif
+
+	private SerializedDataParameter enableNoise;
+	private SerializedDataParameter noiseIntensity;
+	private SerializedDataParameter noiseCoverage;
+	private SerializedDataParameter noiseTileSize;
+	private SerializedDataParameter enableNoiseMacro;
+	private SerializedDataParameter noiseMacroTileSize;
+	private SerializedDataParameter noiseMacroIntensity;
+	private SerializedDataParameter enableNoiseDetail;
+	private SerializedDataParameter noiseDetailTileSize;
+	private SerializedDataParameter noiseDetailIntensity;
+	private SerializedDataParameter windDirection;
+	private SerializedDataParameter windSpeed;
+	private SerializedDataParameter noiseFadeDistance;
+	private SerializedDataParameter powderIntensity;
 
 	private SerializedDataParameter enableMainLightContribution;
 	private SerializedDataParameter anisotropy;
@@ -48,8 +67,12 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		PropertyFetcher<VolumetricFogVolumeComponent> pf = new PropertyFetcher<VolumetricFogVolumeComponent>(serializedObject);
 
 		distance = Unpack(pf.Find(x => x.distance));
+		startDistance = Unpack(pf.Find(x => x.startDistance));
+		fullDensityDistance = Unpack(pf.Find(x => x.fullDensityDistance));
+		distanceFalloff = Unpack(pf.Find(x => x.distanceFalloff));
 		baseHeight = Unpack(pf.Find(x => x.baseHeight));
 		maximumHeight = Unpack(pf.Find(x => x.maximumHeight));
+		heightFalloff = Unpack(pf.Find(x => x.heightFalloff));
 
 		enableGround = Unpack(pf.Find(x => x.enableGround));
 		groundHeight = Unpack(pf.Find(x => x.groundHeight));
@@ -60,6 +83,21 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		enableAPVContribution = Unpack(pf.Find(x => x.enableAPVContribution));
 		APVContributionWeight = Unpack(pf.Find(x => x.APVContributionWeight));
 #endif
+
+		enableNoise = Unpack(pf.Find(x => x.enableNoise));
+		noiseIntensity = Unpack(pf.Find(x => x.noiseIntensity));
+		noiseCoverage = Unpack(pf.Find(x => x.noiseCoverage));
+		noiseTileSize = Unpack(pf.Find(x => x.noiseTileSize));
+		enableNoiseMacro = Unpack(pf.Find(x => x.enableNoiseMacro));
+		noiseMacroTileSize = Unpack(pf.Find(x => x.noiseMacroTileSize));
+		noiseMacroIntensity = Unpack(pf.Find(x => x.noiseMacroIntensity));
+		enableNoiseDetail = Unpack(pf.Find(x => x.enableNoiseDetail));
+		noiseDetailTileSize = Unpack(pf.Find(x => x.noiseDetailTileSize));
+		noiseDetailIntensity = Unpack(pf.Find(x => x.noiseDetailIntensity));
+		windDirection = Unpack(pf.Find(x => x.windDirection));
+		windSpeed = Unpack(pf.Find(x => x.windSpeed));
+		noiseFadeDistance = Unpack(pf.Find(x => x.noiseFadeDistance));
+		powderIntensity = Unpack(pf.Find(x => x.powderIntensity));
 
 		enableMainLightContribution = Unpack(pf.Find(x => x.enableMainLightContribution));
 		anisotropy = Unpack(pf.Find(x => x.anisotropy));
@@ -89,12 +127,19 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		}
 
 		bool enabledGround = enableGround.overrideState.boolValue && enableGround.value.boolValue;
+		bool enabledNoise = enableNoise.overrideState.boolValue && enableNoise.value.boolValue;
+		bool enabledNoiseMacro = enableNoiseMacro.overrideState.boolValue && enableNoiseMacro.value.boolValue;
+		bool enabledNoiseDetail = enableNoiseDetail.overrideState.boolValue && enableNoiseDetail.value.boolValue;
 		bool enabledMainLightContribution = enableMainLightContribution.overrideState.boolValue && enableMainLightContribution.value.boolValue;
 		bool enabledAdditionalLightsContribution = enableAdditionalLightsContribution.overrideState.boolValue && enableAdditionalLightsContribution.value.boolValue;
 
 		PropertyField(distance);
+		PropertyField(startDistance);
+		PropertyField(fullDensityDistance);
+		PropertyField(distanceFalloff);
 		PropertyField(baseHeight);
 		PropertyField(maximumHeight);
+		PropertyField(heightFalloff);
 
 		PropertyField(enableGround);
 		if (enabledGround)
@@ -108,6 +153,33 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		if (enabledAPVContribution)
 			PropertyField(APVContributionWeight);
 #endif
+
+		PropertyField(enableNoise);
+		if (enabledNoise)
+		{
+			PropertyField(noiseIntensity);
+			PropertyField(noiseCoverage);
+			PropertyField(noiseTileSize);
+
+			PropertyField(enableNoiseMacro);
+			if (enabledNoiseMacro)
+			{
+				PropertyField(noiseMacroTileSize);
+				PropertyField(noiseMacroIntensity);
+			}
+
+			PropertyField(enableNoiseDetail);
+			if (enabledNoiseDetail)
+			{
+				PropertyField(noiseDetailTileSize);
+				PropertyField(noiseDetailIntensity);
+			}
+
+			PropertyField(windDirection);
+			PropertyField(windSpeed);
+			PropertyField(noiseFadeDistance);
+			PropertyField(powderIntensity);
+		}
 
 		PropertyField(enableMainLightContribution);
 		if (enabledMainLightContribution)

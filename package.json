@@ -1,13 +1,15 @@
 {
   "name": "com.cqf.urpvolumetricfog",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "displayName": "URP Volumetric Fog",
-  "description": "Volumetric fog integrated into URP's volume system. Supports additional lights, shadows and cookies. Render graph support is available for Unity 6 and above.",
+  "description": "Volumetric fog integrated into URP's volume system. Supports additional lights, shadows and cookies, as well as animated 3D noise to render cloud alike fog. Render graph support is available for Unity 6 and above.",
   "unity": "2022.3",
   "unityRelease": "18f1",
   "keywords": [
     "volumetric",
-    "fog"
+    "fog",
+    "clouds",
+    "noise"
   ],
   "author": {
     "name": "Cristian Qiu F\u00e9lez",

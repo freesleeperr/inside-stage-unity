@@ -12,6 +12,7 @@ Any Unity version posterior to 2022.3 LTS (included), up to Unity 6000.5.
 * Perspective and orthographic projection support.
 * Single pass VR rendering support. This is verified by users, since I do not work on VR.
 * Seamlessly integrated into URP volume system.
+* Cloud alike fog through animated and tileable 3D noise, procedurally generated at runtime.
 * Works in forward, deferred, forward+ and deferred+ rendering paths. See limitations section. 
 * Verified in DirectX11, DirectX12, OpenGLES3, OpenGLCore and Vulkan.
 
@@ -37,6 +38,26 @@ Then you can proceed to install this package:
 5. Make sure that "Enable Main Light Contribution" and "Enable Additional Lights Contribution" are also enabled depending on your needs, as they are also disabled by default.
 6. For spot and point lights, add the component "VolumetricAdditionalLight" to those lights that you want to contribute to the volumetric fog.
 7. If you still can not see the fog, play with the different volume parameters or try to increase the intensity of your lights.
+
+# How to add cloud alike fog
+
+The fog is uniform by default, with only its height driving the density. To turn it into cloudy, volumetric fog:
+
+1. In the volume override, tick "Enable Noise" inside the "Noise (Clouds)" section.
+2. "Noise Tile Size" is the world size, in meters, of one tile of the noise that shapes the clouds of fog. Big values give big and soft clouds, while small values give small and busy ones.
+3. "Noise Coverage" controls how much of the volume is filled. Lower it to open up gaps of clear air between the clouds of fog.
+4. "Noise Intensity" blends between the uniform fog and the noise driven one.
+5. "Enable Noise Detail" adds a second and higher frequency noise that erodes the edges of the clouds of fog. It costs one extra 3D texture fetch per raymarching step.
+6. "Wind Direction" and "Wind Speed" define how the clouds of fog are blown. The wind direction does not need to be normalized.
+7. "Noise Fade Distance" is the distance from the camera at which the noise fades back into uniform fog. Raymarching steps get longer with distance, so the noise aliases when it is far away. Set it to a value below the fog "Distance" if you see noise flickering in the distance. Zero disables the fade.
+8. "Powder Intensity" darkens the light scattered by the thinnest parts of the fog, which adds contrast and makes the clouds of fog look fluffier.
+
+The noise textures are procedurally generated the first time they are needed, which takes a few hundred milliseconds. Enabling the noise while in edit mode gets that cost out of the way before entering play mode.
+
+Some notes about performance and quality:
+
+* The noise is sampled at every raymarching step, so both "Max Steps" and the noise settings drive the cost.
+* Dense noise with few raymarching steps leads to temporal noise. Increase "Max Steps", the blur iterations, or lower the noise frequency by increasing the tile sizes.
 
 # Known limitations
 

@@ -47,6 +47,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		
 		if (shouldAddVolumetricFogRenderPass)
 		{
+			PrewarmNoiseTextures();
 			volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
 			volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
 			renderer.EnqueuePass(volumetricFogRenderPass);
@@ -66,6 +67,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 #endif
 		CoreUtils.Destroy(downsampleDepthMaterial);
 		CoreUtils.Destroy(volumetricFogMaterial);
+		VolumetricFogNoise.Dispose();
 	}
 
 	#endregion
@@ -112,6 +114,20 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		bool areResourcesOk = ValidateResourcesForVolumetricFogRenderPass(false);
 
 		return isActive && isVolumeOk && isCameraOk && areResourcesOk;
+	}
+
+	/// <summary>
+	/// Generates the noise textures used by the fog before the render pass is enqueued, so that they are never
+	/// created while the render pass is being executed.
+	/// </summary>
+	private void PrewarmNoiseTextures()
+	{
+		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
+
+		bool isNoiseEnabled = fogVolume.enableNoise.value && fogVolume.noiseIntensity.value > 0.0f;
+		bool isDetailEnabled = fogVolume.enableNoiseDetail.value && fogVolume.noiseDetailIntensity.value > 0.0f;
+
+		VolumetricFogNoise.Prewarm(isNoiseEnabled, isDetailEnabled);
 	}
 
 	/// <summary>

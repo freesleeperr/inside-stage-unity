@@ -56,6 +56,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 		public TextureHandle downsampledCameraDepthTarget;
 		public TextureHandle volumetricFogRenderTarget;
 		public UniversalLightData lightData;
+		public Vector3 cameraPositionWS;
 	}
 
 #endif
@@ -82,8 +83,12 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 	private static readonly int FrameCountId = Shader.PropertyToID("_FrameCount");
 	private static readonly int CustomAdditionalLightsCountId = Shader.PropertyToID("_CustomAdditionalLightsCount");
 	private static readonly int DistanceId = Shader.PropertyToID("_Distance");
+	private static readonly int DistanceFadeStartId = Shader.PropertyToID("_DistanceFadeStart");
+	private static readonly int DistanceFadeRcpRangeId = Shader.PropertyToID("_DistanceFadeRcpRange");
+	private static readonly int DistanceFalloffId = Shader.PropertyToID("_DistanceFalloff");
 	private static readonly int BaseHeightId = Shader.PropertyToID("_BaseHeight");
 	private static readonly int MaximumHeightId = Shader.PropertyToID("_MaximumHeight");
+	private static readonly int HeightFalloffId = Shader.PropertyToID("_HeightFalloff");
 	private static readonly int GroundHeightId = Shader.PropertyToID("_GroundHeight");
 	private static readonly int DensityId = Shader.PropertyToID("_Density");
 	private static readonly int AbsortionId = Shader.PropertyToID("_Absortion");
@@ -92,6 +97,39 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 #endif
 	private static readonly int TintId = Shader.PropertyToID("_Tint");
 	private static readonly int MaxStepsId = Shader.PropertyToID("_MaxSteps");
+	private static readonly int PowderIntensityId = Shader.PropertyToID("_PowderIntensity");
+
+	private static readonly int FogShapeNoiseTextureId = Shader.PropertyToID("_FogShapeNoiseTexture");
+	private static readonly int FogDetailNoiseTextureId = Shader.PropertyToID("_FogDetailNoiseTexture");
+	private static readonly int NoiseShapeOffsetId = Shader.PropertyToID("_NoiseShapeOffset");
+	private static readonly int NoiseDetailOffsetId = Shader.PropertyToID("_NoiseDetailOffset");
+	private static readonly int NoiseMacroOffsetId = Shader.PropertyToID("_NoiseMacroOffset");
+	private static readonly int NoiseShapeTilingId = Shader.PropertyToID("_NoiseShapeTiling");
+	private static readonly int NoiseDetailTilingId = Shader.PropertyToID("_NoiseDetailTiling");
+	private static readonly int NoiseMacroTilingId = Shader.PropertyToID("_NoiseMacroTiling");
+	private static readonly int NoiseIntensityId = Shader.PropertyToID("_NoiseIntensity");
+	private static readonly int NoiseCoverageId = Shader.PropertyToID("_NoiseCoverage");
+	private static readonly int NoiseDetailIntensityId = Shader.PropertyToID("_NoiseDetailIntensity");
+	private static readonly int NoiseMacroIntensityId = Shader.PropertyToID("_NoiseMacroIntensity");
+	private static readonly int NoiseFadeStartId = Shader.PropertyToID("_NoiseFadeStart");
+	private static readonly int NoiseFadeRcpRangeId = Shader.PropertyToID("_NoiseFadeRcpRange");
+
+	private static readonly int FogAreaWorldToLocalId = Shader.PropertyToID("_FogAreaWorldToLocal");
+	private static readonly int FogAreaBorderId = Shader.PropertyToID("_FogAreaBorder");
+	private static readonly int FogAreaDensityMultiplierId = Shader.PropertyToID("_FogAreaDensityMultiplier");
+
+	private const string FogAreaKeyword = "_FOG_AREA_ENABLED";
+	private const string FogNoiseKeyword = "_FOG_NOISE_ENABLED";
+	private const string FogNoiseDetailKeyword = "_FOG_NOISE_DETAIL_ENABLED";
+	private const string FogNoiseMacroKeyword = "_FOG_NOISE_MACRO_ENABLED";
+
+	private const float DetailWindSpeedMultiplier = 2.0f;
+	private const float MacroWindSpeedMultiplier = 0.5f;
+	private const float NoiseFadeDisabledStart = 1e9f;
+
+	// Distance layering is disabled by starting the buildup before the camera and completing it right away.
+	private const float DistanceFadeDisabledStart = -1.0f;
+	private const float DistanceFadeInstantRcpRange = 1e6f;
 
 	private static readonly int AnisotropiesArrayId = Shader.PropertyToID("_Anisotropies");
 	private static readonly int ScatteringsArrayId = Shader.PropertyToID("_Scatterings");
@@ -219,7 +257,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 
 		using (new ProfilingScope(cmd, profilingSampler))
 		{
-			UpdateVolumetricFogMaterialParameters(volumetricFogMaterial, renderingData.lightData.mainLightIndex, renderingData.lightData.additionalLightsCount, renderingData.lightData.visibleLights);
+			UpdateVolumetricFogMaterialParameters(volumetricFogMaterial, renderingData.lightData.mainLightIndex, renderingData.lightData.additionalLightsCount, renderingData.lightData.visibleLights, renderingData.cameraData.worldSpaceCameraPos);
 			Blitter.BlitCameraTexture(cmd, volumetricFogRenderRTHandle, volumetricFogRenderRTHandle, volumetricFogMaterial, volumetricFogRenderPassIndex);
 
 			int blurIterations = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>().blurIterations.value;
@@ -283,6 +321,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 			passData.materialPassIndex = volumetricFogRenderPassIndex;
 			passData.downsampledCameraDepthTarget = downsampledCameraDepthTarget;
 			passData.lightData = lightData;
+			passData.cameraPositionWS = cameraData.worldSpaceCameraPos;
 
 			builder.SetRenderAttachment(volumetricFogRenderTarget, 0, AccessFlags.WriteAll);
 			builder.UseTexture(downsampledCameraDepthTarget);
@@ -340,7 +379,8 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 	/// <param name="mainLightIndex"></param>
 	/// <param name="additionalLightsCount"></param>
 	/// <param name="visibleLights"></param>
-	private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex, int additionalLightsCount, NativeArray<VisibleLight> visibleLights)
+	/// <param name="cameraPositionWS"></param>
+	private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex, int additionalLightsCount, NativeArray<VisibleLight> visibleLights, Vector3 cameraPositionWS)
 	{
 		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
@@ -366,12 +406,16 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 			volumetricFogMaterial.EnableKeyword("_ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED");
 		
 		UpdateLightsParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution, enableAdditionalLightsContribution, mainLightIndex, visibleLights);
+		UpdateNoiseParameters(volumetricFogMaterial, fogVolume);
+		UpdateAreaParameters(volumetricFogMaterial, cameraPositionWS);
 
 		volumetricFogMaterial.SetInteger(FrameCountId, Time.renderedFrameCount % 64);
 		volumetricFogMaterial.SetInteger(CustomAdditionalLightsCountId, additionalLightsCount);
 		volumetricFogMaterial.SetFloat(DistanceId, fogVolume.distance.value);
+		UpdateDistanceLayeringParameters(volumetricFogMaterial, fogVolume);
 		volumetricFogMaterial.SetFloat(BaseHeightId, fogVolume.baseHeight.value);
 		volumetricFogMaterial.SetFloat(MaximumHeightId, fogVolume.maximumHeight.value);
+		volumetricFogMaterial.SetFloat(HeightFalloffId, fogVolume.heightFalloff.value);
 		volumetricFogMaterial.SetFloat(GroundHeightId, (fogVolume.enableGround.overrideState && fogVolume.enableGround.value) ? fogVolume.groundHeight.value : float.MinValue);
 		volumetricFogMaterial.SetFloat(DensityId, fogVolume.density.value);
 		volumetricFogMaterial.SetFloat(AbsortionId, 1.0f / fogVolume.attenuationDistance.value);
@@ -380,6 +424,113 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 #endif
 		volumetricFogMaterial.SetColor(TintId, fogVolume.tint.value);
 		volumetricFogMaterial.SetInteger(MaxStepsId, fogVolume.maxSteps.value);
+	}
+
+	/// <summary>
+	/// Updates the parameters of the fog area that confines the fog to a box of the world. When there is no area
+	/// enabled in the scene, the fog fills the world as usual.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="cameraPositionWS"></param>
+	private static void UpdateAreaParameters(Material volumetricFogMaterial, Vector3 cameraPositionWS)
+	{
+		VolumetricFogArea fogArea = VolumetricFogArea.GetClosestActiveArea(cameraPositionWS);
+
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogAreaKeyword, fogArea != null);
+
+		if (fogArea == null)
+			return;
+
+		volumetricFogMaterial.SetMatrix(FogAreaWorldToLocalId, fogArea.WorldToAreaMatrix);
+		volumetricFogMaterial.SetVector(FogAreaBorderId, fogArea.Border);
+		volumetricFogMaterial.SetFloat(FogAreaDensityMultiplierId, fogArea.densityMultiplier);
+	}
+
+	/// <summary>
+	/// Updates the parameters that build the fog density up with the distance to the camera.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="fogVolume"></param>
+	private static void UpdateDistanceLayeringParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume)
+	{
+		float startDistance = fogVolume.startDistance.value;
+		float fullDensityDistance = Mathf.Max(fogVolume.fullDensityDistance.value, startDistance);
+		bool enableDistanceLayering = startDistance > 0.0f || fullDensityDistance > startDistance;
+
+		volumetricFogMaterial.SetFloat(DistanceFadeStartId, enableDistanceLayering ? startDistance : DistanceFadeDisabledStart);
+		volumetricFogMaterial.SetFloat(DistanceFadeRcpRangeId, (enableDistanceLayering && fullDensityDistance > startDistance) ? 1.0f / (fullDensityDistance - startDistance) : DistanceFadeInstantRcpRange);
+		volumetricFogMaterial.SetFloat(DistanceFalloffId, enableDistanceLayering ? fogVolume.distanceFalloff.value : 1.0f);
+	}
+
+	/// <summary>
+	/// Updates the noise parameters that turn the fog into cloud alike fog.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="fogVolume"></param>
+	private static void UpdateNoiseParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume)
+	{
+		bool enableNoise = fogVolume.enableNoise.value && fogVolume.noiseIntensity.value > 0.0f;
+		bool enableNoiseDetail = enableNoise && fogVolume.enableNoiseDetail.value && fogVolume.noiseDetailIntensity.value > 0.0f;
+		bool enableNoiseMacro = enableNoise && fogVolume.enableNoiseMacro.value && fogVolume.noiseMacroIntensity.value > 0.0f;
+
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogNoiseKeyword, enableNoise);
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogNoiseDetailKeyword, enableNoiseDetail);
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogNoiseMacroKeyword, enableNoiseMacro);
+
+		volumetricFogMaterial.SetFloat(PowderIntensityId, fogVolume.powderIntensity.value);
+
+		if (!enableNoise)
+			return;
+
+		float shapeTiling = 1.0f / fogVolume.noiseTileSize.value;
+		float detailTiling = 1.0f / fogVolume.noiseDetailTileSize.value;
+		float macroTiling = 1.0f / fogVolume.noiseMacroTileSize.value;
+
+		Vector3 windDirection = fogVolume.windDirection.value;
+		windDirection = windDirection.sqrMagnitude > 0.0f ? windDirection.normalized : Vector3.zero;
+
+		// The fog is blown towards the wind direction, so the noise has to be scrolled towards the opposite one.
+		float time = Application.isPlaying ? Time.time : Time.realtimeSinceStartup;
+		Vector3 windOffset = -windDirection * (fogVolume.windSpeed.value * time);
+
+		volumetricFogMaterial.SetTexture(FogShapeNoiseTextureId, VolumetricFogNoise.ShapeNoiseTexture);
+		volumetricFogMaterial.SetVector(NoiseShapeOffsetId, WrapNoiseOffset(windOffset * shapeTiling));
+		volumetricFogMaterial.SetFloat(NoiseShapeTilingId, shapeTiling);
+		volumetricFogMaterial.SetFloat(NoiseIntensityId, fogVolume.noiseIntensity.value);
+		volumetricFogMaterial.SetFloat(NoiseCoverageId, fogVolume.noiseCoverage.value);
+
+		if (enableNoiseDetail)
+		{
+			volumetricFogMaterial.SetTexture(FogDetailNoiseTextureId, VolumetricFogNoise.DetailNoiseTexture);
+			volumetricFogMaterial.SetVector(NoiseDetailOffsetId, WrapNoiseOffset(windOffset * (detailTiling * DetailWindSpeedMultiplier)));
+			volumetricFogMaterial.SetFloat(NoiseDetailTilingId, detailTiling);
+			volumetricFogMaterial.SetFloat(NoiseDetailIntensityId, fogVolume.noiseDetailIntensity.value);
+		}
+
+		if (enableNoiseMacro)
+		{
+			// The banks of fog are much bigger than the clouds inside them, so they are drifted slower to sell their scale.
+			volumetricFogMaterial.SetVector(NoiseMacroOffsetId, WrapNoiseOffset(windOffset * (macroTiling * MacroWindSpeedMultiplier)));
+			volumetricFogMaterial.SetFloat(NoiseMacroTilingId, macroTiling);
+			volumetricFogMaterial.SetFloat(NoiseMacroIntensityId, fogVolume.noiseMacroIntensity.value);
+		}
+
+		float fadeStart = fogVolume.noiseFadeDistance.value;
+		bool enableFade = fadeStart > 0.0f && fadeStart < fogVolume.distance.value;
+
+		volumetricFogMaterial.SetFloat(NoiseFadeStartId, enableFade ? fadeStart : NoiseFadeDisabledStart);
+		volumetricFogMaterial.SetFloat(NoiseFadeRcpRangeId, enableFade ? 1.0f / (fogVolume.distance.value - fadeStart) : 0.0f);
+	}
+
+	/// <summary>
+	/// Wraps the noise offset into the [0, 1) range. The noise textures tile seamlessly, so the result is identical
+	/// to the unwrapped offset, but the floating point precision is kept as time goes by.
+	/// </summary>
+	/// <param name="offset"></param>
+	/// <returns></returns>
+	private static Vector3 WrapNoiseOffset(Vector3 offset)
+	{
+		return new Vector3(Mathf.Repeat(offset.x, 1.0f), Mathf.Repeat(offset.y, 1.0f), Mathf.Repeat(offset.z, 1.0f));
 	}
 
 	/// <summary>
@@ -488,7 +639,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 		if (stage == PassStage.VolumetricFogRender)
 		{
 			passData.material.SetTexture(DownsampledCameraDepthTextureId, passData.downsampledCameraDepthTarget);
-			UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.lightData.additionalLightsCount, passData.lightData.visibleLights);
+			UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.lightData.additionalLightsCount, passData.lightData.visibleLights, passData.cameraPositionWS);
 		}
 		else if (stage == PassStage.VolumetricFogUpsampleComposition)
 		{

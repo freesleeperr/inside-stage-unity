@@ -16,17 +16,27 @@
 #include "./DeclareDownsampledDepthTexture.hlsl"
 #include "./VolumetricShadows.hlsl"
 #include "./ProjectionUtils.hlsl"
+#include "./VolumetricFogNoise.hlsl"
+#include "./VolumetricFogArea.hlsl"
+
+// How fast the powder effect darkens the fog as its density decreases.
+#define VOLUMETRIC_FOG_POWDER_SHARPNESS 6.0
 
 int _FrameCount;
 uint _CustomAdditionalLightsCount;
 float _Distance;
+float _DistanceFadeStart;
+float _DistanceFadeRcpRange;
+float _DistanceFalloff;
 float _BaseHeight;
 float _MaximumHeight;
+float _HeightFalloff;
 float _GroundHeight;
 float _Density;
 float _Absortion;
 float _APVContributionWeight;
 float3 _Tint;
+float _PowderIntensity;
 int _MaxSteps;
 
 float _Anisotropies[MAX_VISIBLE_LIGHTS + 1];
@@ -97,14 +107,53 @@ float GetMainLightPhase(float3 rd)
 #endif
 }
 
-// Gets the fog density at the given world height.
-float GetFogDensity(float posWSy)
+// Gets the density multiplier, in the [0, 1] range, that builds the fog up as it gets further away from the camera.
+// When the distance layering is disabled the fade start is negative and the range is nearly zero, so it returns one everywhere.
+float GetFogDistanceMultiplier(float dist)
 {
-    float t = saturate((posWSy - _BaseHeight) / (_MaximumHeight - _BaseHeight));
-    t = 1.0 - t;
-    t = lerp(t, 0.0, posWSy < _GroundHeight);
+    float t = saturate((dist - _DistanceFadeStart) * _DistanceFadeRcpRange);
 
-    return _Density * t;
+    // PositivePow never returns exactly zero, so the fog before the start distance has to be discarded apart.
+    return t > 0.0 ? PositivePow(t, _DistanceFalloff) : 0.0;
+}
+
+// Gets the density multiplier, in the [0, 1] range, that fades the fog out as it gets closer to the maximum height.
+float GetFogHeightMultiplier(float posWSY)
+{
+    float t = saturate((posWSY - _BaseHeight) / (_MaximumHeight - _BaseHeight));
+    t = 1.0 - t;
+    t = lerp(t, 0.0, posWSY < _GroundHeight);
+
+    // PositivePow never returns exactly zero, so the fog above the maximum height has to be discarded apart.
+    return t > 0.0 ? PositivePow(t, _HeightFalloff) : 0.0;
+}
+
+// Gets the fog density at the given world position, which is at the given distance from the camera.
+float GetFogDensity(float3 posWS, float dist)
+{
+    float t = GetFogHeightMultiplier(posWS.y);
+
+    // Skip the rest of the work where the height gradient has already faded the fog out.
+    UNITY_BRANCH
+    if (t <= 0.0)
+        return 0.0;
+
+    t *= GetFogDistanceMultiplier(dist) * GetFogAreaDensityMultiplier(posWS);
+
+    float density = 0.0;
+
+    // Skip sampling the noise where the distance gradient or the area borders have already faded the fog out.
+    UNITY_BRANCH
+    if (t > 0.0)
+        density = _Density * t * GetFogNoiseDensityMultiplier(posWS, dist);
+
+    return density;
+}
+
+// Gets the powder factor, which darkens the light scattered by the thinnest parts of the fog, making it look fluffier.
+float GetPowderFactor(float density)
+{
+    return lerp(1.0, 1.0 - exp(-density * VOLUMETRIC_FOG_POWDER_SHARPNESS), _PowderIntensity);
 }
 
 // Gets the GI evaluation from the adaptive probe volume at one raymarch step.
@@ -200,7 +249,29 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
 
     offsetLength -= iniOffsetToNearPlane;
     float3 roNearPlane = ro + rd * iniOffsetToNearPlane;
-    float stepLength = (_Distance - iniOffsetToNearPlane) / (float)_MaxSteps;
+
+    float startDistance = 0.0;
+    float endDistance = _Distance - iniOffsetToNearPlane;
+
+#if _FOG_AREA_ENABLED
+    // Raymarch only the part of the ray that crosses the area. All of the steps end up inside of the box, so the
+    // fog it holds is resolved with a lot more detail than marching the whole distance would.
+    float areaEnterDistance;
+    float areaExitDistance;
+
+    UNITY_BRANCH
+    if (!IntersectFogArea(roNearPlane, rd, areaEnterDistance, areaExitDistance))
+        return float4(0.0, 0.0, 0.0, 1.0);
+
+    startDistance = max(startDistance, areaEnterDistance);
+    endDistance = min(endDistance, areaExitDistance);
+
+    UNITY_BRANCH
+    if (startDistance >= endDistance || startDistance >= offsetLength)
+        return float4(0.0, 0.0, 0.0, 1.0);
+#endif
+
+    float stepLength = (endDistance - startDistance) / (float)_MaxSteps;
     float jitter = stepLength * InterleavedGradientNoise(positionCS, _FrameCount);
 
     float phaseMainLight = GetMainLightPhase(rdPhase);
@@ -212,7 +283,7 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
     UNITY_LOOP
     for (int i = 0; i < _MaxSteps; ++i)
     {
-        float dist = jitter + i * stepLength;
+        float dist = startDistance + jitter + i * stepLength;
         
         UNITY_BRANCH
         if (dist >= offsetLength)
@@ -223,7 +294,7 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
         // and certain combinations of field of view, raymarching resolution and camera near plane.
         // In those edge cases, it looks so much better, specially when near plane is higher than the minimum (0.01) allowed.
         float3 currPosWS = roNearPlane + rd * dist;
-        float density = GetFogDensity(currPosWS.y);
+        float density = GetFogDensity(currPosWS, dist);
                     
         UNITY_BRANCH
         if (density <= 0.0)
@@ -237,7 +308,7 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
         float3 additionalLightsColor = GetStepAdditionalLightsColor(uv, currPosWS, rd, density);
         
         // TODO: Additional contributions? Reflection probes, etc...
-        float3 stepColor = apvColor + mainLightColor + additionalLightsColor;
+        float3 stepColor = apvColor + (mainLightColor + additionalLightsColor) * GetPowderFactor(density);
         volumetricFogColor += (stepColor * (transmittance * stepLength));
         
         // TODO: Break out when transmittance reaches low threshold and remap the transmittance when doing so.

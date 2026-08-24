@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0] - 2026-08-24
+
+* Added noise based, cloud alike volumetric fog. The fog density can now be modulated with animated, tileable 3D noise.
+* Added the "Noise (Clouds)" section to the volume component, with coverage, intensity, tile size, wind and distance fade parameters.
+* Added an optional and higher frequency detail noise that erodes the edges of the clouds of fog.
+* Added the powder effect parameter, which darkens the light scattered by the thinnest parts of the fog so that it looks fluffier.
+* The 3D noise textures are procedurally generated at runtime with the job system, so no additional assets are needed.
+
 ## [0.5.9] - 2026-03-21
 
 * Removed warning displayed in versions starting from 6000.3. Add support to 6000.4.

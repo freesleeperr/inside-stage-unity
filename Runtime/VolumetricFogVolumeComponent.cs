@@ -24,10 +24,18 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Header("Distances")]
 	[Tooltip("The maximum distance from the camera that the fog will be rendered up to.")]
 	public ClampedFloatParameter distance = new ClampedFloatParameter(64.0f, 0.0f, 512.0f);
+	[Tooltip("The distance from the camera at which the fog starts to appear. Everything closer than it stays completely clear, which keeps the foreground readable and separates it from the background.")]
+	public MinFloatParameter startDistance = new MinFloatParameter(0.0f, 0.0f);
+	[Tooltip("The distance from the camera at which the fog reaches the density specified in the volume. Between the start distance and this one, the fog builds up gradually. Values equal or lower than the start distance make the fog reach its full density right away.")]
+	public MinFloatParameter fullDensityDistance = new MinFloatParameter(0.0f, 0.0f);
+	[Tooltip("Shapes how the fog builds up between the start distance and the full density distance. Values lower than one make the fog build up quickly and then flatten out, while higher values keep the closest fog thinner and push most of the buildup towards the full density distance.")]
+	public ClampedFloatParameter distanceFalloff = new ClampedFloatParameter(1.0f, 0.1f, 8.0f);
 	[Tooltip("The world height at which the fog will have the density specified in the volume.")]
 	public FloatParameter baseHeight = new FloatParameter(0.0f, true);
 	[Tooltip("The world height at which the fog will have no density at all.")]
 	public FloatParameter maximumHeight = new FloatParameter(50.0f, true);
+	[Tooltip("Shapes how the fog thins out between the base height and the maximum height. Values lower than one keep the fog dense for most of the range and then fade it out quickly, while higher values concentrate the fog near the base height, which reads as a low lying layer of mist.")]
+	public ClampedFloatParameter heightFalloff = new ClampedFloatParameter(1.0f, 0.1f, 8.0f);
 
 	[Header("Ground")]
 	[Tooltip("When enabled, allows to define a world height. Below it, fog will have no density at all.")]
@@ -46,6 +54,36 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Tooltip("A weight factor for the light coming from adaptive probe volumes (APV) when the probe volume contribution is enabled.")]
 	public ClampedFloatParameter APVContributionWeight = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
 #endif
+
+	[Header("Noise (Clouds)")]
+	[Tooltip("When enabled, the fog density is modulated with animated 3D noise, which gives it a cloudy, volumetric look.")]
+	public BoolParameter enableNoise = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("How much the noise modulates the fog density. At zero the fog is completely uniform, while at one it is fully driven by the noise.")]
+	public ClampedFloatParameter noiseIntensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
+	[Tooltip("How much of the volume is covered by the clouds of fog. Lower values leave bigger gaps of clear air between them.")]
+	public ClampedFloatParameter noiseCoverage = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
+	[Tooltip("The world size, in meters, of one tile of the noise that defines the overall shape of the clouds of fog.")]
+	public MinFloatParameter noiseTileSize = new MinFloatParameter(48.0f, 0.01f);
+	[Tooltip("When enabled, a third and much lower frequency noise varies the coverage across the world, which gathers the fog into banks separated by clearings instead of spreading it evenly. It is what gives the fog its sense of depth when looking into the distance.")]
+	public BoolParameter enableNoiseMacro = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("The world size, in meters, of one tile of the noise that gathers the fog into banks. It should be several times bigger than the shape tile size, otherwise the banks are too small to be noticed as such.")]
+	public MinFloatParameter noiseMacroTileSize = new MinFloatParameter(240.0f, 0.01f);
+	[Tooltip("How much the banks of fog vary the coverage. At zero the coverage is uniform, while at one it goes from completely clear in the middle of the clearings to twice the coverage in the middle of the banks.")]
+	public ClampedFloatParameter noiseMacroIntensity = new ClampedFloatParameter(0.75f, 0.0f, 1.0f);
+	[Tooltip("When enabled, a second and higher frequency noise erodes the edges of the clouds of fog, adding wispy details at the cost of some performance.")]
+	public BoolParameter enableNoiseDetail = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("The world size, in meters, of one tile of the noise that erodes the edges of the clouds of fog.")]
+	public MinFloatParameter noiseDetailTileSize = new MinFloatParameter(8.0f, 0.01f);
+	[Tooltip("How much the detail noise erodes the edges of the clouds of fog.")]
+	public ClampedFloatParameter noiseDetailIntensity = new ClampedFloatParameter(0.35f, 0.0f, 1.0f);
+	[Tooltip("The direction towards which the clouds of fog are blown. It does not need to be normalized.")]
+	public Vector3Parameter windDirection = new Vector3Parameter(new Vector3(1.0f, 0.0f, 0.25f));
+	[Tooltip("How fast, in meters per second, the clouds of fog are blown by the wind.")]
+	public MinFloatParameter windSpeed = new MinFloatParameter(1.5f, 0.0f);
+	[Tooltip("The distance from the camera at which the noise starts fading back into uniform fog, which hides the aliasing caused by the raymarching steps becoming too long to resolve it. Zero disables the fade.")]
+	public MinFloatParameter noiseFadeDistance = new MinFloatParameter(0.0f, 0.0f);
+	[Tooltip("Darkens the light scattered by the thinnest parts of the fog, which makes the clouds of fog look fluffier and gives them more contrast.")]
+	public ClampedFloatParameter powderIntensity = new ClampedFloatParameter(0.0f, 0.0f, 1.0f);
 
 	[Header("Main Light")]
 	[Tooltip("Disabling this will avoid computing the main light contribution to fog, which in most cases will lead to better performance.")]
