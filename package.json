@@ -16,6 +16,9 @@
     "url": "",
     "email": "skyluckin@gmail.com"
   },
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.12"
+  },
   "samples": [
     {
       "displayName": "InsideStage Demo",
