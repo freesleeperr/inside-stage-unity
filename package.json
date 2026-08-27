@@ -1,5 +1,5 @@
 {
-  "name": "com.cqf.urpvolumetricfog",
+  "name": "com.freesleeperr.insidestage",
   "version": "0.6.2",
   "displayName": "URP Volumetric Fog",
   "description": "Volumetric fog integrated into URP's volume system. Supports additional lights, shadows and cookies, as well as animated 3D noise to render cloud alike fog. Render graph support is available for Unity 6 and above.",

@@ -2,7 +2,7 @@
 #define VOLUMETRIC_FOG_NOISE_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
-#include "Packages/com.cqf.urpvolumetricfog/Shaders/VolumetricFogArea.hlsl"
+#include "Packages/com.freesleeperr.insidestage/Shaders/VolumetricFogArea.hlsl"
 
 // The lowest value that the shape noise reaches. Remapping it back to zero spreads the noise along the whole
 // [0, 1] range, which is what makes the coverage parameter useful along its whole range too.

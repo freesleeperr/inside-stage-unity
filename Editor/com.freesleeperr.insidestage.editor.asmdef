@@ -1,10 +1,10 @@
 {
-    "name": "com.cqf.urpvolumetricfog.editor",
+    "name": "com.freesleeperr.insidestage.editor",
     "rootNamespace": "",
     "references": [
         "GUID:3eae0364be2026648bf74846acb8a731",
         "GUID:df380645f10b7bc4b97d4f5eb6303d95",
-        "GUID:da73c4ed88505644497dd650af00dc26"
+        "GUID:aad2958b0f5111f49b30d1e0e88a2579"
     ],
     "includePlatforms": [
         "Editor"
