@@ -1,4 +1,4 @@
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEditor.Rendering;
 
 /// <summary>
@@ -20,8 +20,13 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	private SerializedDataParameter enableGround;
 	private SerializedDataParameter groundHeight;
 
+	private SerializedDataParameter areaGlobalDensity;
+
 	private SerializedDataParameter density;
 	private SerializedDataParameter attenuationDistance;
+	private SerializedDataParameter enableAmbientContribution;
+	private SerializedDataParameter ambientColor;
+	private SerializedDataParameter ambientIntensity;
 #if UNITY_2023_1_OR_NEWER
 	private SerializedDataParameter enableAPVContribution;
 	private SerializedDataParameter APVContributionWeight;
@@ -46,6 +51,9 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	private SerializedDataParameter anisotropy;
 	private SerializedDataParameter scattering;
 	private SerializedDataParameter tint;
+	private SerializedDataParameter enableSelfShadowing;
+	private SerializedDataParameter selfShadowingIntensity;
+	private SerializedDataParameter selfShadowingDistance;
 
 	private SerializedDataParameter enableAdditionalLightsContribution;
 
@@ -77,8 +85,13 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		enableGround = Unpack(pf.Find(x => x.enableGround));
 		groundHeight = Unpack(pf.Find(x => x.groundHeight));
 
+		areaGlobalDensity = Unpack(pf.Find(x => x.areaGlobalDensity));
+
 		density = Unpack(pf.Find(x => x.density));
 		attenuationDistance = Unpack(pf.Find(x => x.attenuationDistance));
+		enableAmbientContribution = Unpack(pf.Find(x => x.enableAmbientContribution));
+		ambientColor = Unpack(pf.Find(x => x.ambientColor));
+		ambientIntensity = Unpack(pf.Find(x => x.ambientIntensity));
 #if UNITY_2023_1_OR_NEWER
 		enableAPVContribution = Unpack(pf.Find(x => x.enableAPVContribution));
 		APVContributionWeight = Unpack(pf.Find(x => x.APVContributionWeight));
@@ -103,6 +116,9 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		anisotropy = Unpack(pf.Find(x => x.anisotropy));
 		scattering = Unpack(pf.Find(x => x.scattering));
 		tint = Unpack(pf.Find(x => x.tint));
+		enableSelfShadowing = Unpack(pf.Find(x => x.enableSelfShadowing));
+		selfShadowingIntensity = Unpack(pf.Find(x => x.selfShadowingIntensity));
+		selfShadowingDistance = Unpack(pf.Find(x => x.selfShadowingDistance));
 
 		enableAdditionalLightsContribution = Unpack(pf.Find(x => x.enableAdditionalLightsContribution));
 
@@ -145,8 +161,17 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		if (enabledGround)
 			PropertyField(groundHeight);
 
+		PropertyField(areaGlobalDensity);
+
 		PropertyField(density);
 		PropertyField(attenuationDistance);
+
+		PropertyField(enableAmbientContribution);
+		if (enableAmbientContribution.overrideState.boolValue && enableAmbientContribution.value.boolValue)
+		{
+			PropertyField(ambientColor);
+			PropertyField(ambientIntensity);
+		}
 #if UNITY_2023_1_OR_NEWER
 		bool enabledAPVContribution = enableAPVContribution.overrideState.boolValue && enableAPVContribution.value.boolValue;
 		PropertyField(enableAPVContribution);
@@ -187,6 +212,13 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 			PropertyField(anisotropy);
 			PropertyField(scattering);
 			PropertyField(tint);
+
+			PropertyField(enableSelfShadowing);
+			if (enableSelfShadowing.overrideState.boolValue && enableSelfShadowing.value.boolValue)
+			{
+				PropertyField(selfShadowingIntensity);
+				PropertyField(selfShadowingDistance);
+			}
 		}
 
 		PropertyField(enableAdditionalLightsContribution);

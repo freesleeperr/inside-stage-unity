@@ -3,6 +3,7 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using Unity.Collections;
+using System.Collections.Generic;
 
 #if UNITY_6000_0_OR_NEWER
 using System;
@@ -96,8 +97,11 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 	private static readonly int APVContributionWeigthId = Shader.PropertyToID("_APVContributionWeight");
 #endif
 	private static readonly int TintId = Shader.PropertyToID("_Tint");
+	private static readonly int AmbientColorId = Shader.PropertyToID("_AmbientColor");
 	private static readonly int MaxStepsId = Shader.PropertyToID("_MaxSteps");
 	private static readonly int PowderIntensityId = Shader.PropertyToID("_PowderIntensity");
+	private static readonly int SelfShadowingStepLengthId = Shader.PropertyToID("_SelfShadowingStepLength");
+	private static readonly int SelfShadowingIntensityId = Shader.PropertyToID("_SelfShadowingIntensity");
 
 	private static readonly int FogShapeNoiseTextureId = Shader.PropertyToID("_FogShapeNoiseTexture");
 	private static readonly int FogDetailNoiseTextureId = Shader.PropertyToID("_FogDetailNoiseTexture");
@@ -114,14 +118,60 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 	private static readonly int NoiseFadeStartId = Shader.PropertyToID("_NoiseFadeStart");
 	private static readonly int NoiseFadeRcpRangeId = Shader.PropertyToID("_NoiseFadeRcpRange");
 
-	private static readonly int FogAreaWorldToLocalId = Shader.PropertyToID("_FogAreaWorldToLocal");
-	private static readonly int FogAreaBorderId = Shader.PropertyToID("_FogAreaBorder");
-	private static readonly int FogAreaDensityMultiplierId = Shader.PropertyToID("_FogAreaDensityMultiplier");
+	private static readonly int FogAreasWorldToLocalId = Shader.PropertyToID("_FogAreasWorldToLocal");
+	private static readonly int FogAreasBorderAndDensityId = Shader.PropertyToID("_FogAreasBorderAndDensity");
+	private static readonly int FogAreasTintId = Shader.PropertyToID("_FogAreasTint");
+	private static readonly int FogAreasGlobalDensityMultiplierId = Shader.PropertyToID("_FogAreasGlobalDensityMultiplier");
+	private static readonly int FogAreasCountId = Shader.PropertyToID("_FogAreasCount");
+	private static readonly int FogAreasNoiseParamsId = Shader.PropertyToID("_FogAreasNoiseParams");
+	private static readonly int FogAreasNoiseShapeOffsetId = Shader.PropertyToID("_FogAreasNoiseShapeOffset");
+	private static readonly int FogAreasNoiseDetailOffsetId = Shader.PropertyToID("_FogAreasNoiseDetailOffset");
+
+	private static readonly int PlacedShadowsWorldToLocalId = Shader.PropertyToID("_PlacedShadowsWorldToLocal");
+	private static readonly int PlacedShadowsIntensityId = Shader.PropertyToID("_PlacedShadowsIntensity");
+	private static readonly int PlacedShadowsSoftnessId = Shader.PropertyToID("_PlacedShadowsSoftness");
+	private static readonly int PlacedShadowsProjectionId = Shader.PropertyToID("_PlacedShadowsProjection");
+	private static readonly int PlacedShadowsRcpLengthId = Shader.PropertyToID("_PlacedShadowsRcpLength");
+	private static readonly int PlacedShadowsBoxnessId = Shader.PropertyToID("_PlacedShadowsBoxness");
+	private static readonly int PlacedShadowsCountId = Shader.PropertyToID("_PlacedShadowsCount");
+
 
 	private const string FogAreaKeyword = "_FOG_AREA_ENABLED";
+	private const string FogAmbientKeyword = "_FOG_AMBIENT_ENABLED";
 	private const string FogNoiseKeyword = "_FOG_NOISE_ENABLED";
 	private const string FogNoiseDetailKeyword = "_FOG_NOISE_DETAIL_ENABLED";
 	private const string FogNoiseMacroKeyword = "_FOG_NOISE_MACRO_ENABLED";
+	private const string FogSelfShadowingKeyword = "_FOG_SELF_SHADOWING_ENABLED";
+	private const string FogPlacedShadowsKeyword = "_FOG_PLACED_SHADOWS_ENABLED";
+
+	// Both have to be kept in sync with their counterparts from VolumetricFog.hlsl.
+	private const int SelfShadowingSteps = 6;
+	private const float SelfShadowingStepGrowth = 2.0f;
+
+	// It has to be kept in sync with its counterpart from VolumetricFogArea.hlsl.
+	private const int MaxFogAreas = 8;
+
+	// It has to be kept in sync with its counterpart from VolumetricFogPlacedShadows.hlsl.
+	private const int MaxPlacedShadows = 8;
+
+	// The material locks the length of these arrays on the first upload, so they are allocated once and only their
+	// first entries, the ones holding the areas that are actually rendered, are filled every frame.
+	private static readonly Matrix4x4[] FogAreasWorldToLocal = new Matrix4x4[MaxFogAreas];
+	private static readonly Vector4[] FogAreasBorderAndDensity = new Vector4[MaxFogAreas];
+	private static readonly Vector4[] FogAreasTint = new Vector4[MaxFogAreas];
+	private static readonly Vector4[] FogAreasNoiseParams = new Vector4[MaxFogAreas];
+	private static readonly Vector4[] FogAreasNoiseShapeOffset = new Vector4[MaxFogAreas];
+	private static readonly Vector4[] FogAreasNoiseDetailOffset = new Vector4[MaxFogAreas];
+
+	// The material locks the length of these arrays on the first upload, so they are allocated once and only their
+	// first entries, the ones holding the shadows that are actually rendered, are filled every frame.
+	private static readonly Matrix4x4[] PlacedShadowsWorldToLocal = new Matrix4x4[MaxPlacedShadows];
+	private static readonly float[] PlacedShadowsIntensity = new float[MaxPlacedShadows];
+	private static readonly float[] PlacedShadowsSoftness = new float[MaxPlacedShadows];
+	private static readonly float[] PlacedShadowsProjection = new float[MaxPlacedShadows];
+	private static readonly float[] PlacedShadowsRcpLength = new float[MaxPlacedShadows];
+	private static readonly float[] PlacedShadowsBoxness = new float[MaxPlacedShadows];
+
 
 	private const float DetailWindSpeedMultiplier = 2.0f;
 	private const float MacroWindSpeedMultiplier = 0.5f;
@@ -404,10 +454,13 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 			volumetricFogMaterial.DisableKeyword("_ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED");
 		else
 			volumetricFogMaterial.EnableKeyword("_ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED");
-		
+
 		UpdateLightsParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution, enableAdditionalLightsContribution, mainLightIndex, visibleLights);
+		UpdateSelfShadowingParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution);
+		UpdateAmbientParameters(volumetricFogMaterial, fogVolume);
 		UpdateNoiseParameters(volumetricFogMaterial, fogVolume);
-		UpdateAreaParameters(volumetricFogMaterial, cameraPositionWS);
+		UpdateAreaParameters(volumetricFogMaterial, fogVolume, cameraPositionWS);
+		UpdatePlacedShadowsParameters(volumetricFogMaterial, cameraPositionWS);
 
 		volumetricFogMaterial.SetInteger(FrameCountId, Time.renderedFrameCount % 64);
 		volumetricFogMaterial.SetInteger(CustomAdditionalLightsCountId, additionalLightsCount);
@@ -427,24 +480,118 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 	}
 
 	/// <summary>
-	/// Updates the parameters of the fog area that confines the fog to a box of the world. When there is no area
-	/// enabled in the scene, the fog fills the world as usual.
+	/// Updates the parameters of the ambient light that the fog scatters, which is the light that does not come from
+	/// any light in particular and is what keeps the fog readable where nothing directly lights it.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="fogVolume"></param>
+	private static void UpdateAmbientParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume)
+	{
+		bool enableAmbientContribution = fogVolume.enableAmbientContribution.value && fogVolume.ambientIntensity.value > 0.0f;
+
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogAmbientKeyword, enableAmbientContribution);
+
+		if (!enableAmbientContribution)
+			return;
+
+		volumetricFogMaterial.SetVector(AmbientColorId, fogVolume.ambientColor.value.linear * fogVolume.ambientIntensity.value);
+	}
+
+	/// <summary>
+	/// Updates the parameters of the fog areas that hold the fog inside boxes of the world. Only the ones closest to
+	/// the camera are rendered, and when there is no area enabled in the scene the fog fills the world as usual.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="fogVolume"></param>
+	/// <param name="cameraPositionWS"></param>
+	private static void UpdateAreaParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume, Vector3 cameraPositionWS)
+	{
+		List<VolumetricFogArea> fogAreas = VolumetricFogArea.GetClosestActiveAreas(cameraPositionWS, MaxFogAreas);
+		int count = fogAreas.Count;
+
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogAreaKeyword, count > 0);
+
+		if (count == 0)
+			return;
+
+		float time = Application.isPlaying ? Time.time : Time.realtimeSinceStartup;
+
+		for (int i = 0; i < count; ++i)
+		{
+			VolumetricFogArea fogArea = fogAreas[i];
+
+			FogAreasWorldToLocal[i] = fogArea.WorldToAreaMatrix;
+			FogAreasBorderAndDensity[i] = fogArea.BorderAndDensity;
+			FogAreasTint[i] = fogArea.tint.linear;
+
+			// The areas that author a noise of their own drift it on their own wind, so the offsets are wrapped here
+			// the very same way the global ones are instead of being scaled in the shader, where wrapping the global
+			// offset by a factor of its own would pop every time it came back around.
+			Vector4 noiseParameters = fogArea.NoiseParameters;
+			FogAreasNoiseParams[i] = noiseParameters;
+
+			if (noiseParameters.x > 0.0f)
+			{
+				Vector3 windOffset = fogArea.GetNoiseWindOffset(time);
+
+				FogAreasNoiseShapeOffset[i] = WrapNoiseOffset(windOffset * noiseParameters.x);
+				FogAreasNoiseDetailOffset[i] = WrapNoiseOffset(windOffset * (noiseParameters.y * DetailWindSpeedMultiplier));
+				FogAreasNoiseDetailOffset[i].w = fogArea.noiseDetailIntensity;
+			}
+			else
+			{
+				FogAreasNoiseShapeOffset[i] = Vector4.zero;
+				FogAreasNoiseDetailOffset[i] = Vector4.zero;
+			}
+		}
+
+		volumetricFogMaterial.SetMatrixArray(FogAreasWorldToLocalId, FogAreasWorldToLocal);
+		volumetricFogMaterial.SetVectorArray(FogAreasBorderAndDensityId, FogAreasBorderAndDensity);
+		volumetricFogMaterial.SetVectorArray(FogAreasTintId, FogAreasTint);
+		volumetricFogMaterial.SetVectorArray(FogAreasNoiseParamsId, FogAreasNoiseParams);
+		volumetricFogMaterial.SetVectorArray(FogAreasNoiseShapeOffsetId, FogAreasNoiseShapeOffset);
+		volumetricFogMaterial.SetVectorArray(FogAreasNoiseDetailOffsetId, FogAreasNoiseDetailOffset);
+		volumetricFogMaterial.SetFloat(FogAreasGlobalDensityMultiplierId, fogVolume.areaGlobalDensity.value);
+		volumetricFogMaterial.SetInteger(FogAreasCountId, count);
+	}
+
+	/// <summary>
+	/// Updates the parameters of the shadows that are placed by hand in the scene. Only the ones closest to the camera
+	/// are rendered, and the whole feature is compiled out when there is none.
 	/// </summary>
 	/// <param name="volumetricFogMaterial"></param>
 	/// <param name="cameraPositionWS"></param>
-	private static void UpdateAreaParameters(Material volumetricFogMaterial, Vector3 cameraPositionWS)
+	private static void UpdatePlacedShadowsParameters(Material volumetricFogMaterial, Vector3 cameraPositionWS)
 	{
-		VolumetricFogArea fogArea = VolumetricFogArea.GetClosestActiveArea(cameraPositionWS);
+		List<VolumetricFogPlacedShadow> placedShadows = VolumetricFogPlacedShadow.GetClosestActiveShadows(cameraPositionWS, MaxPlacedShadows);
+		int count = placedShadows.Count;
 
-		CoreUtils.SetKeyword(volumetricFogMaterial, FogAreaKeyword, fogArea != null);
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogPlacedShadowsKeyword, count > 0);
 
-		if (fogArea == null)
+		if (count == 0)
 			return;
 
-		volumetricFogMaterial.SetMatrix(FogAreaWorldToLocalId, fogArea.WorldToAreaMatrix);
-		volumetricFogMaterial.SetVector(FogAreaBorderId, fogArea.Border);
-		volumetricFogMaterial.SetFloat(FogAreaDensityMultiplierId, fogArea.densityMultiplier);
+		for (int i = 0; i < count; ++i)
+		{
+			VolumetricFogPlacedShadow placedShadow = placedShadows[i];
+
+			PlacedShadowsWorldToLocal[i] = placedShadow.WorldToShadowMatrix;
+			PlacedShadowsIntensity[i] = placedShadow.intensity;
+			PlacedShadowsSoftness[i] = placedShadow.softness;
+			PlacedShadowsProjection[i] = placedShadow.projection;
+			PlacedShadowsRcpLength[i] = placedShadow.ReciprocalLength;
+			PlacedShadowsBoxness[i] = placedShadow.Boxness;
+		}
+
+		volumetricFogMaterial.SetMatrixArray(PlacedShadowsWorldToLocalId, PlacedShadowsWorldToLocal);
+		volumetricFogMaterial.SetFloatArray(PlacedShadowsIntensityId, PlacedShadowsIntensity);
+		volumetricFogMaterial.SetFloatArray(PlacedShadowsSoftnessId, PlacedShadowsSoftness);
+		volumetricFogMaterial.SetFloatArray(PlacedShadowsProjectionId, PlacedShadowsProjection);
+		volumetricFogMaterial.SetFloatArray(PlacedShadowsRcpLengthId, PlacedShadowsRcpLength);
+		volumetricFogMaterial.SetFloatArray(PlacedShadowsBoxnessId, PlacedShadowsBoxness);
+		volumetricFogMaterial.SetInteger(PlacedShadowsCountId, count);
 	}
+
 
 	/// <summary>
 	/// Updates the parameters that build the fog density up with the distance to the camera.
@@ -460,6 +607,30 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 		volumetricFogMaterial.SetFloat(DistanceFadeStartId, enableDistanceLayering ? startDistance : DistanceFadeDisabledStart);
 		volumetricFogMaterial.SetFloat(DistanceFadeRcpRangeId, (enableDistanceLayering && fullDensityDistance > startDistance) ? 1.0f / (fullDensityDistance - startDistance) : DistanceFadeInstantRcpRange);
 		volumetricFogMaterial.SetFloat(DistanceFalloffId, enableDistanceLayering ? fogVolume.distanceFalloff.value : 1.0f);
+	}
+
+	/// <summary>
+	/// Updates the parameters of the light march that makes the fog shadow itself. It only affects the main light,
+	/// so it is skipped altogether when the main light does not contribute to the fog.
+	/// </summary>
+	/// <param name="volumetricFogMaterial"></param>
+	/// <param name="fogVolume"></param>
+	/// <param name="enableMainLightContribution"></param>
+	private static void UpdateSelfShadowingParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume, bool enableMainLightContribution)
+	{
+		bool enableSelfShadowing = enableMainLightContribution && fogVolume.enableSelfShadowing.value && fogVolume.selfShadowingIntensity.value > 0.0f;
+
+		CoreUtils.SetKeyword(volumetricFogMaterial, FogSelfShadowingKeyword, enableSelfShadowing);
+
+		if (!enableSelfShadowing)
+			return;
+
+		// Every step doubles the previous one, so the first one is the fraction of the marched distance that makes all
+		// of them add up to exactly it.
+		float stepLength = fogVolume.selfShadowingDistance.value * (SelfShadowingStepGrowth - 1.0f) / (Mathf.Pow(SelfShadowingStepGrowth, SelfShadowingSteps) - 1.0f);
+
+		volumetricFogMaterial.SetFloat(SelfShadowingStepLengthId, stepLength);
+		volumetricFogMaterial.SetFloat(SelfShadowingIntensityId, fogVolume.selfShadowingIntensity.value);
 	}
 
 	/// <summary>

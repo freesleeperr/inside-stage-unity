@@ -4,17 +4,19 @@ Any Unity version posterior to 2022.3 LTS (included), up to Unity 6000.5.
 
 # Features
 
-* Render graph and compatibility mode support for Unity 6 and above.
-* Support for the main light, spot lights and point lights.
-* Shadows and light cookies support for the lights described above.
-* Realtime and mixed lights support.
-* APV support for Unity 2023.1+.
-* Perspective and orthographic projection support.
-* Single pass VR rendering support. This is verified by users, since I do not work on VR.
-* Seamlessly integrated into URP volume system.
-* Cloud alike fog through animated and tileable 3D noise, procedurally generated at runtime.
-* Works in forward, deferred, forward+ and deferred+ rendering paths. See limitations section. 
-* Verified in DirectX11, DirectX12, OpenGLES3, OpenGLCore and Vulkan.
+- Render graph and compatibility mode support for Unity 6 and above.
+- Support for the main light, spot lights and point lights.
+- Shadows and light cookies support for the lights described above.
+- Realtime and mixed lights support.
+- APV support for Unity 2023.1+.
+- Perspective and orthographic projection support.
+- Single pass VR rendering support. This is verified by users, since I do not work on VR.
+- Seamlessly integrated into URP volume system.
+- Cloud alike fog through animated and tileable 3D noise, procedurally generated at runtime.
+- Local fog volumes, so that the fog can be held inside boxes of the world instead of filling it entirely, either on their own or on top of a thinner global fog.
+- Optional self shadowing of the fog for the main light.
+- Works in forward, deferred, forward+ and deferred+ rendering paths. See limitations section.
+- Verified in DirectX11, DirectX12, OpenGLES3, OpenGLCore and Vulkan.
 
 # Installation
 
@@ -27,7 +29,7 @@ Then you can proceed to install this package:
 
 ![Install](https://github.com/CristianQiu/Unity-Packages-Gifs/blob/main/URP-Volumetric-Light/UPM1.jpg)
 
-3. Write the following URL: https://github.com/CristianQiu/Unity-URP-Volumetric-Light.git and click install.
+3. Write the following URL: https://github.com/freesleeperr/inside-stage-unity.git and click install.
 
 # How to add volumetric fog
 
@@ -51,38 +53,55 @@ The fog is uniform by default, with only its height driving the density. To turn
 6. "Wind Direction" and "Wind Speed" define how the clouds of fog are blown. The wind direction does not need to be normalized.
 7. "Noise Fade Distance" is the distance from the camera at which the noise fades back into uniform fog. Raymarching steps get longer with distance, so the noise aliases when it is far away. Set it to a value below the fog "Distance" if you see noise flickering in the distance. Zero disables the fade.
 8. "Powder Intensity" darkens the light scattered by the thinnest parts of the fog, which adds contrast and makes the clouds of fog look fluffier.
+9. "Enable Self Shadowing", inside the "Main Light" section, makes the fog cast shadows onto itself. It is what gives the clouds of fog bright edges and dark cores, and it is the single parameter that makes them read as volumes rather than as flat patches. "Self Shadowing Intensity" controls how dark they get, while "Self Shadowing Distance" is how far the light march looks for the fog that occludes each step.
 
 The noise textures are procedurally generated the first time they are needed, which takes a few hundred milliseconds. Enabling the noise while in edit mode gets that cost out of the way before entering play mode.
 
 Some notes about performance and quality:
 
-* The noise is sampled at every raymarching step, so both "Max Steps" and the noise settings drive the cost.
-* Dense noise with few raymarching steps leads to temporal noise. Increase "Max Steps", the blur iterations, or lower the noise frequency by increasing the tile sizes.
+- The noise is sampled at every raymarching step, so both "Max Steps" and the noise settings drive the cost.
+- Dense noise with few raymarching steps leads to temporal noise. Increase "Max Steps", the blur iterations, or lower the noise frequency by increasing the tile sizes.
+- Self shadowing marches six extra samples towards the main light at every raymarching step that finds fog, so it is by far the most expensive of the noise related settings. The detail noise is skipped in that march, since those steps are too long to resolve it anyway.
+
+# How to hold the fog inside local volumes
+
+By default the fog fills the whole world up to the "Distance" set in the volume. To gather it into local pockets instead, which is what lets a corridor be filled with thick fog while the room next to it stays clear:
+
+1. Add an empty game object to your scene and add the component "Rendering->Volumetric Fog Area" to it.
+2. "Size" is the size of the box that holds the fog, in local units. The box is placed, rotated and scaled with the transform, so it can be stretched and turned to follow whatever it is filling.
+3. "Horizontal Border" and "Vertical Border" are the fraction of the box, measured from its sides towards its center, across which the fog fades in. Leave them at zero only when the box is fully hidden behind geometry, as its edges are hard otherwise.
+4. "Density Multiplier" scales the density that the volume sets, for this area alone. Expect to need values well above one: an area is only a few meters deep, while the global fog accumulates across the whole fog distance, so the same density reads much thinner inside of a box.
+5. Up to eight areas are rendered at the same time. When there are more in the scene, the eight closest to the camera are the ones that are kept. Areas that overlap keep the densest of them rather than adding up.
+6. "Area Global Density", in the "Fog Areas" section of the volume override, is how much fog is left outside of the areas, as a fraction of the density set in the volume. Keep it at zero to have fog only inside of the areas, or raise it to lay a thin haze everywhere and let the areas read as denser pockets on top of it.
+
+While "Area Global Density" is zero, the raymarching is restricted to the part of the view ray that crosses the areas, so all of the steps are spent on the fog that is actually there and it resolves with a lot more detail than the same step count spread over the whole fog distance. Raising it above zero gives that up, since the ray then has to march the world as well.
+
+The areas only shape where the fog is. What carves the shadows out of it is the lighting: turn on "Enable Main Light Contribution" and make sure that the occluding geometry casts shadows, and the fog inside the areas is shadowed by the scene like any other surface.
 
 # Known limitations
 
-* Multipass VR rendering is not supported.
-* WebGL is not supported. See https://github.com/CristianQiu/Unity-URP-Volumetric-Light/issues/7.
-* Not tested on Switch 1/2 and PS4 consoles. Verified by users in Steam Deck, Xbox One/XSX and PS5 as of v0.5.6.
-* Transparent objects are not blended correctly with fog.
-* Fully baked lights are only supported through APV.
-* Fog is only rendered up to a certain distance from the camera.
-* It may be possible to notice more noise in some light regions at certain view angles.
-* When using forward or deferred rendering path, performance can be heavily affected when adding multiple additional lights. Forward+ or Deferred+ is highly recommended for best performance when support for additional lights is needed.
+- Multipass VR rendering is not supported.
+- WebGL is not supported. See https://github.com/freesleeperr/inside-stage-unity/issues/7.
+- Not tested on Switch 1/2 and PS4 consoles. Verified by users in Steam Deck, Xbox One/XSX and PS5 as of v0.5.6.
+- Transparent objects are not blended correctly with fog.
+- Fully baked lights are only supported through APV.
+- Fog is only rendered up to a certain distance from the camera.
+- It may be possible to notice more noise in some light regions at certain view angles.
+- When using forward or deferred rendering path, performance can be heavily affected when adding multiple additional lights. Forward+ or Deferred+ is highly recommended for best performance when support for additional lights is needed.
 
 # Known Bugs
 
-* There is an issue with volumetric shadows from lights when "Transparent Receive Shadows" is off in the URP Renderer. If you are having issues with volumetric shadows from lights you may need to turn the setting on. See https://github.com/CristianQiu/Unity-URP-Volumetric-Light/issues/10.
+- There is an issue with volumetric shadows from lights when "Transparent Receive Shadows" is off in the URP Renderer. If you are having issues with volumetric shadows from lights you may need to turn the setting on. See https://github.com/freesleeperr/inside-stage-unity/issues/10.
 
 # TODO
 
 There are a few things that I would like to add at some point, as I like coming back to this project from time to time in my spare time.
 Some of which are (in no particular order):
 
-* WebGL support.
-* Further improvements on performance and quality: quarter resolution rendering, reprojection, better transparency support...
-* New features: density volumes, noise, self shadowing...
-* And of course... bug fixing! Do not hesitate to open issues for anything that you find unexpected or buggy.
+- WebGL support.
+- Further improvements on performance and quality: quarter resolution rendering, reprojection, better transparency support...
+- New features: density volumes, self shadowing for additional lights...
+- And of course... bug fixing! Do not hesitate to open issues for anything that you find unexpected or buggy.
 
 # Preview
 

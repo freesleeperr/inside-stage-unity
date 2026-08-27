@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.2] - 2026-08-25
+
+* Volumetric fog areas can now hold fog several at a time, instead of only the one closest to the camera being rendered. Up to eight of them contribute at once, which removes the popping that happened when the camera moved from one area to another.
+* Areas that overlap keep the densest of them instead of adding up, so that sliding one area over another does not thicken the fog where they cross.
+* Areas are now sorted by the distance to the box that they define, and no longer by the distance to its center, so that a big area surrounding the camera is never dropped in favour of the small ones gathered further away.
+* Added the "Area Global Density" parameter to the volume component. It sets how much fog is left outside of the areas: zero keeps the fog entirely inside of them, as it was before, while higher values leave a thinner layer of fog everywhere and turn the areas into denser pockets on top of it.
+* The raymarching is only restricted to the areas when there is no fog left outside of them, as the global fog fills the gaps between areas otherwise.
+
+## [0.6.1] - 2026-08-25
+
+* Added self shadowing for the main light. A short ray is marched towards it at every raymarching step, so that the fog casts shadows onto itself and the clouds of fog get bright edges and dark cores instead of being lit uniformly.
+* Added the "Enable Self Shadowing", "Self Shadowing Intensity" and "Self Shadowing Distance" parameters to the main light section of the volume component.
+* The raymarching now stops as soon as the fog is thick enough to hide whatever is behind it, which saves a good amount of steps in dense fog.
+
 ## [0.6.0] - 2026-08-24
 
 * Added noise based, cloud alike volumetric fog. The fog density can now be modulated with animated, tileable 3D noise.

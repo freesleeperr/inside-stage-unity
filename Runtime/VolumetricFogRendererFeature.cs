@@ -44,7 +44,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	{
 		bool isPostProcessEnabled = renderingData.postProcessingEnabled && renderingData.cameraData.postProcessEnabled;
 		bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled && ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType);
-		
+
 		if (shouldAddVolumetricFogRenderPass)
 		{
 			PrewarmNoiseTextures();
@@ -96,7 +96,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 
 		bool okDepth = downsampleDepthShader != null && downsampleDepthMaterial != null;
 		bool okVolumetric = volumetricFogShader != null && volumetricFogMaterial != null;
-		
+
 		return okDepth && okVolumetric;
 	}
 
@@ -137,7 +137,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	private RenderPassEvent GetRenderPassEvent()
 	{
 		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-		
+
 		return (RenderPassEvent)fogVolume.renderPassEvent.value;
 	}
 

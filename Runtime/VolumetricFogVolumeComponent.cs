@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -43,11 +43,21 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Tooltip("Below this world height, fog will have no density at all.")]
 	public FloatParameter groundHeight = new FloatParameter(0.0f);
 
+	[Header("Fog Areas")]
+	[Tooltip("How much fog there is outside of the volumetric fog areas placed in the scene, as a fraction of the density set below. Zero keeps the fog entirely inside of the areas, which is also what allows the raymarching steps to be gathered around them. Higher values leave a thinner layer of fog everywhere and turn the areas into denser pockets on top of it. It has no effect when there is no area in the scene.")]
+	public ClampedFloatParameter areaGlobalDensity = new ClampedFloatParameter(0.0f, 0.0f, 1.0f);
+
 	[Header("Lighting")]
 	[Tooltip("How dense is the fog.")]
 	public ClampedFloatParameter density = new ClampedFloatParameter(0.2f, 0.0f, 1.0f);
 	[Tooltip("Value that defines how much the fog attenuates light as distance increases. Lesser values lead to a darker image.")]
 	public MinFloatParameter attenuationDistance = new MinFloatParameter(128.0f, 0.05f);
+	[Tooltip("When enabled, the fog scatters a constant amount of light that does not come from any light in particular, which is what keeps it readable where nothing directly lights it. Without it the fog goes pure black in the shade.")]
+	public BoolParameter enableAmbientContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("The color of the light that reaches the fog from everywhere at once. Matching it to the ambient or the sky of the scene is what makes the fog sit in the image instead of floating on top of it.")]
+	public ColorParameter ambientColor = new ColorParameter(Color.white, true, false, true);
+	[Tooltip("How much ambient light the fog scatters. It is the parameter that lifts the fog out of pure black, so small values already go a long way.")]
+	public MinFloatParameter ambientIntensity = new MinFloatParameter(0.1f, 0.0f);
 #if UNITY_2023_1_OR_NEWER
 	[Tooltip("When enabled, adaptive probe volumes (APV) will be sampled to contribute to fog.")]
 	public BoolParameter enableAPVContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
@@ -94,6 +104,12 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	public ClampedFloatParameter scattering = new ClampedFloatParameter(0.15f, 0.0f, 1.0f);
 	[Tooltip("A multiplier color to tint the main light fog.")]
 	public ColorParameter tint = new ColorParameter(Color.white, true, false, true);
+	[Tooltip("When enabled, the fog casts shadows onto itself by marching a short ray towards the main light at every raymarching step. It is what gives the clouds of fog bright edges and dark cores instead of lighting them up uniformly, at a noticeable cost.")]
+	public BoolParameter enableSelfShadowing = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("How much the fog darkens itself. Higher values make the parts of the fog that are hidden behind other fog darker. It is kept apart from the attenuation distance, so that the shadowing can be dialed in without changing how dark the whole image gets.")]
+	public ClampedFloatParameter selfShadowingIntensity = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
+	[Tooltip("The distance, in meters, that is marched towards the main light to gather the fog that shadows every raymarching step. Bigger values catch whole clouds of fog and give broad shadows, while smaller ones concentrate the shadowing on the nearby details.")]
+	public MinFloatParameter selfShadowingDistance = new MinFloatParameter(16.0f, 0.01f);
 
 	[Header("Additional Lights")]
 	[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]

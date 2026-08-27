@@ -1,6 +1,6 @@
 {
   "name": "com.cqf.urpvolumetricfog",
-  "version": "0.6.0",
+  "version": "0.6.2",
   "displayName": "URP Volumetric Fog",
   "description": "Volumetric fog integrated into URP's volume system. Supports additional lights, shadows and cookies, as well as animated 3D noise to render cloud alike fog. Render graph support is available for Unity 6 and above.",
   "unity": "2022.3",
@@ -16,7 +16,7 @@
     "url": "http://cristianqiu.github.io/web",
     "email": "cristianqiufelez@gmail.com"
   },
-  "documentationUrl": "https://github.com/CristianQiu/Unity-URP-Volumetric-Light/blob/main/README.md",
-  "licensesUrl": "https://github.com/CristianQiu/Unity-URP-Volumetric-Light/blob/main/LICENSE.md",
-  "changelogUrl": "https://github.com/CristianQiu/Unity-URP-Volumetric-Light/blob/main/CHANGELOG.md"
+  "documentationUrl": "https://github.com/freesleeperr/inside-stage-unity/blob/main/README.md",
+  "licensesUrl": "https://github.com/freesleeperr/inside-stage-unity/blob/main/LICENSE.md",
+  "changelogUrl": "https://github.com/freesleeperr/inside-stage-unity/blob/main/CHANGELOG.md"
 }

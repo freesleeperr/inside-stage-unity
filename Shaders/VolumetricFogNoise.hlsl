@@ -2,6 +2,7 @@
 #define VOLUMETRIC_FOG_NOISE_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.cqf.urpvolumetricfog/Shaders/VolumetricFogArea.hlsl"
 
 // The lowest value that the shape noise reaches. Remapping it back to zero spreads the noise along the whole
 // [0, 1] range, which is what makes the coverage parameter useful along its whole range too.
@@ -34,13 +35,15 @@ float RemapNoise(float value, float originalMin, float originalMax, float newMin
     return newMin + (value - originalMin) / (originalMax - originalMin) * (newMax - newMin);
 }
 
-// Gets the density multiplier, in the [0, 1] range, that turns the otherwise uniform fog into cloud alike fog.
-float GetFogNoiseDensityMultiplier(float3 posWS, float dist)
+// Evaluates the noise that carves the fog at the given position with the given parameters, in the [0, 1] range. It is
+// kept apart from the parameters themselves so that both the noise authored in the volume and the one that a fog area
+// authors for itself can be resolved by the very same code.
+// The macro octave is only worth sampling for the fog of the volume, which spans the whole world. The pockets of fog
+// that an area holds are far smaller than the macro tile, so it would be a constant across all of them.
+float EvaluateFogNoise(float3 posWS, float shapeTiling, float3 shapeOffset, float coverage, bool useMacro,
+                       bool includeDetail, float detailTiling, float3 detailOffset, float detailIntensity)
 {
-#if !_FOG_NOISE_ENABLED
-    return 1.0;
-#else
-    float3 shapeUvw = posWS * _NoiseShapeTiling + _NoiseShapeOffset;
+    float3 shapeUvw = posWS * shapeTiling + shapeOffset;
     float4 shapeNoise = SAMPLE_TEXTURE3D_LOD(_FogShapeNoiseTexture, sampler_FogShapeNoiseTexture, shapeUvw, 0.0);
 
     // The perlin-worley channel gives the billowy shape, while the worley octaves round it up into cloud alike blobs.
@@ -48,14 +51,16 @@ float GetFogNoiseDensityMultiplier(float3 posWS, float dist)
     float noise = saturate(RemapNoise(shapeNoise.r, lowFrequencyFbm - 1.0, 1.0, 0.0, 1.0));
     noise = saturate(RemapNoise(noise, VOLUMETRIC_FOG_SHAPE_NOISE_FLOOR, 1.0, 0.0, 1.0));
 
-    float coverage = _NoiseCoverage;
-
 #if _FOG_NOISE_MACRO_ENABLED
-    // A very low frequency worley octave, which is smooth and roughly centered around one half, varies the coverage
-    // across the world. It gathers the fog into banks separated by clearings, which is what gives it depth.
-    float3 macroUvw = posWS * _NoiseMacroTiling + _NoiseMacroOffset;
-    float macroNoise = SAMPLE_TEXTURE3D_LOD(_FogShapeNoiseTexture, sampler_FogShapeNoiseTexture, macroUvw, 0.0).g;
-    coverage = saturate(coverage * lerp(1.0, macroNoise * 2.0, _NoiseMacroIntensity));
+    UNITY_BRANCH
+    if (useMacro)
+    {
+        // A very low frequency worley octave, which is smooth and roughly centered around one half, varies the coverage
+        // across the world. It gathers the fog into banks separated by clearings, which is what gives it depth.
+        float3 macroUvw = posWS * _NoiseMacroTiling + _NoiseMacroOffset;
+        float macroNoise = SAMPLE_TEXTURE3D_LOD(_FogShapeNoiseTexture, sampler_FogShapeNoiseTexture, macroUvw, 0.0).g;
+        coverage = saturate(coverage * lerp(1.0, macroNoise * 2.0, _NoiseMacroIntensity));
+    }
 #endif
 
     // Coverage carves away the lowest densities, which is what opens up the gaps between the clouds of fog.
@@ -63,22 +68,56 @@ float GetFogNoiseDensityMultiplier(float3 posWS, float dist)
 
 #if _FOG_NOISE_DETAIL_ENABLED
     UNITY_BRANCH
-    if (noise > 0.0)
+    if (includeDetail && noise > 0.0 && detailIntensity > 0.0)
     {
-        float3 detailUvw = posWS * _NoiseDetailTiling + _NoiseDetailOffset;
+        float3 detailUvw = posWS * detailTiling + detailOffset;
         float3 detailNoise = SAMPLE_TEXTURE3D_LOD(_FogDetailNoiseTexture, sampler_FogDetailNoiseTexture, detailUvw, 0.0).rgb;
         float detailFbm = detailNoise.r * 0.625 + detailNoise.g * 0.25 + detailNoise.b * 0.125;
 
         // Wispy erosion where the fog is thin and billowy erosion where it is dense, as it is usually done for clouds.
-        float detail = lerp(1.0 - detailFbm, detailFbm, saturate(noise * 2.0)) * _NoiseDetailIntensity;
+        float detail = lerp(1.0 - detailFbm, detailFbm, saturate(noise * 2.0)) * detailIntensity;
         noise = saturate((noise - detail) / max(1.0 - detail, VOLUMETRIC_FOG_MIN_REMAP_RANGE));
     }
 #endif
 
+    return noise;
+}
+
+// Gets the density multiplier, in the [0, 1] range, that turns the otherwise uniform fog into cloud alike fog. The
+// fog area that holds the position, when any does, is allowed to author a noise of its own, so that a small pocket of
+// fog can churn at its own scale and drift on its own wind without the fog of the whole world following it.
+// The detail noise can be skipped by the callers that are too coarse to resolve it, such as the light march that
+// makes the fog shadow itself, so that they do not pay for the extra 3D texture fetch that it costs.
+float GetFogNoiseDensityMultiplier(float3 posWS, float dist, bool includeDetail, int areaIndex)
+{
+#if !_FOG_NOISE_ENABLED
+    return 1.0;
+#else
+    float noise;
+    float intensity;
+
+    float4 areaNoiseParams = areaIndex >= 0 ? _FogAreasNoiseParams[areaIndex] : float4(0.0, 0.0, 0.0, 0.0);
+
+    UNITY_BRANCH
+    if (areaNoiseParams.x > 0.0)
+    {
+        float4 areaDetailOffset = _FogAreasNoiseDetailOffset[areaIndex];
+
+        noise = EvaluateFogNoise(posWS, areaNoiseParams.x, _FogAreasNoiseShapeOffset[areaIndex].xyz, areaNoiseParams.w,
+                                 false, includeDetail, areaNoiseParams.y, areaDetailOffset.xyz, areaDetailOffset.w);
+        intensity = areaNoiseParams.z;
+    }
+    else
+    {
+        noise = EvaluateFogNoise(posWS, _NoiseShapeTiling, _NoiseShapeOffset, _NoiseCoverage,
+                                 true, includeDetail, _NoiseDetailTiling, _NoiseDetailOffset, _NoiseDetailIntensity);
+        intensity = _NoiseIntensity;
+    }
+
     // Far away from the camera the raymarching steps are too long to resolve the noise, so fade it back to uniform fog.
     float distanceFade = saturate((dist - _NoiseFadeStart) * _NoiseFadeRcpRange);
 
-    return lerp(lerp(1.0, noise, _NoiseIntensity), 1.0, distanceFade);
+    return lerp(lerp(1.0, noise, intensity), 1.0, distanceFade);
 #endif
 }
 
