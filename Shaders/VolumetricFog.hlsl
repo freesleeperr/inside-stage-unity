@@ -26,6 +26,10 @@
 // How many steps are marched towards the main light when the fog shadows itself.
 #define VOLUMETRIC_FOG_SELF_SHADOWING_STEPS 6
 
+// How many steps are marched towards every additional light when the fog shadows itself. Every light that reaches the
+// step being shaded pays for its own march, so they are fewer than the ones marched towards the main light.
+#define VOLUMETRIC_FOG_ADDITIONAL_LIGHT_SELF_SHADOWING_STEPS 4
+
 // How much every self shadowing step grows with respect to the previous one. Growing steps concentrate the samples
 // near the position being shaded, which is where the fog that occludes it matters the most.
 #define VOLUMETRIC_FOG_SELF_SHADOWING_STEP_GROWTH 2.0
@@ -51,6 +55,9 @@ float3 _AmbientColor;
 float _PowderIntensity;
 float _SelfShadowingStepLength;
 float _SelfShadowingIntensity;
+float _AdditionalLightsSelfShadowingDistance;
+float _AdditionalLightsSelfShadowingStepFraction;
+float _AdditionalLightsSelfShadowingIntensity;
 int _MaxSteps;
 
 float _Anisotropies[MAX_VISIBLE_LIGHTS + 1];
@@ -179,22 +186,17 @@ float GetFogDensity(float3 posWS, float dist, bool includeDetail)
     return GetFogDensityAndAreaTint(posWS, dist, includeDetail, unusedAreaTint);
 }
 
-// Gets how much of the main light energy reaches the given world position after crossing the fog that occludes it.
-// A short ray is marched towards the light, accumulating the optical depth of all the fog that it finds on its way.
-// It is what gives the clouds of fog bright edges and dark cores, instead of lighting them up uniformly.
+// Marches a short ray towards a light, accumulating the optical depth of all the fog that it finds on its way, which
+// is what makes the fog shadow itself. Every step grows with respect to the previous one, so the samples gather near
+// the position being shaded, which is where the fog that occludes it matters the most.
 // The distance to the camera is the one of the view ray step being shaded, not the one of every sample. It keeps
 // the whole light march inside the same distance band, so that the layering does not fade the shadows in and out.
-float GetFogSelfShadowing(float3 posWS, float3 lightDirection, float dist, float jitter)
+float GetFogOpticalDepthTowardsLight(float3 posWS, float3 lightDirection, float dist, float jitter, float stepLength, int steps)
 {
-#if !_FOG_SELF_SHADOWING_ENABLED
-    return 1.0;
-#else
-    float stepLength = _SelfShadowingStepLength;
     float travelled = stepLength * jitter;
     float opticalDepth = 0.0;
 
-    UNITY_UNROLL
-    for (int i = 0; i < VOLUMETRIC_FOG_SELF_SHADOWING_STEPS; ++i)
+    for (int i = 0; i < steps; ++i)
     {
         travelled += stepLength;
 
@@ -205,9 +207,43 @@ float GetFogSelfShadowing(float3 posWS, float3 lightDirection, float dist, float
         stepLength *= VOLUMETRIC_FOG_SELF_SHADOWING_STEP_GROWTH;
     }
 
+    return opticalDepth;
+}
+
+// Gets how much of the main light energy reaches the given world position after crossing the fog that occludes it.
+// It is what gives the clouds of fog bright edges and dark cores, instead of lighting them up uniformly.
+float GetFogSelfShadowing(float3 posWS, float3 lightDirection, float dist, float jitter)
+{
+#if !_FOG_SELF_SHADOWING_ENABLED
+    return 1.0;
+#else
+    float opticalDepth = GetFogOpticalDepthTowardsLight(posWS, lightDirection, dist, jitter, _SelfShadowingStepLength,
+                                                        VOLUMETRIC_FOG_SELF_SHADOWING_STEPS);
+
     // The extinction here is kept apart from the one used along the view ray, so that the shadowing can be dialed in
     // without having to retweak the attenuation distance, which drives how dark the whole image gets.
     return exp(-opticalDepth * _SelfShadowingIntensity);
+#endif
+}
+
+// Gets how much of the energy of one additional light reaches the given world position after crossing the fog that
+// occludes it. It is the same light march the main light does, and it is what shapes the smoke of a scene lit by
+// lamps rather than by a sun: without it every pocket of fog is lit right through and reads as a flat blob.
+// The march stops at the light itself, since the fog behind a lamp does not shade what is in front of it, and that
+// also keeps the march short for the lamps that sit inside of the very fog they light.
+float GetFogAdditionalLightSelfShadowing(float3 posWS, float3 lightDirection, float distanceToLight, float dist, float jitter)
+{
+#if !_FOG_ADDITIONAL_LIGHTS_SELF_SHADOWING_ENABLED
+    return 1.0;
+#else
+    // The first step is the fraction of the marched distance that makes all of the growing steps add up to exactly it.
+    float marchDistance = min(_AdditionalLightsSelfShadowingDistance, distanceToLight);
+    float stepLength = marchDistance * _AdditionalLightsSelfShadowingStepFraction;
+
+    float opticalDepth = GetFogOpticalDepthTowardsLight(posWS, lightDirection, dist, jitter, stepLength,
+                                                        VOLUMETRIC_FOG_ADDITIONAL_LIGHT_SELF_SHADOWING_STEPS);
+
+    return exp(-opticalDepth * _AdditionalLightsSelfShadowingIntensity);
 #endif
 }
 
@@ -264,7 +300,7 @@ float3 GetStepMainLightColor(float3 currPosWS, float phaseMainLight, float densi
 }
 
 // Gets the accumulated color from additional lights at one raymarch step.
-float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, float density)
+float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, float density, float dist, float jitter)
 {
 #if _ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED
     return float3(0.0, 0.0, 0.0);
@@ -298,6 +334,12 @@ float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, floa
             // Gradually reduce additional lights scattering to zero at their origin to try to avoid flicker-aliasing.
             float3 distToPos = additionalLightPos.xyz - currPosWS;
             float distToPosMagnitudeSq = dot(distToPos, distToPos);
+
+            // Point and spot lights store their position and have their w set to one, while directional lights store
+            // their direction there and have it set to zero, so those are marched the whole distance instead.
+            float distanceToLight = additionalLightPos.w > 0.0 ? sqrt(distToPosMagnitudeSq) : FLT_MAX;
+            additionalLight.shadowAttenuation *= GetFogAdditionalLightSelfShadowing(currPosWS, additionalLight.direction, distanceToLight, dist, jitter);
+
             float newScattering = smoothstep(0.0, _RadiiSq[lightIndex], distToPosMagnitudeSq) ;
             newScattering *= newScattering;
             newScattering *= _Scatterings[lightIndex];
@@ -392,7 +434,7 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
         float3 apvColor = GetStepAdaptiveProbeVolumeEvaluation(uv, currPosWS, density);
         float3 ambientColor = GetStepAmbientColor(density);
         float3 mainLightColor = GetStepMainLightColor(currPosWS, phaseMainLight, density, dist, jitter01);
-        float3 additionalLightsColor = GetStepAdditionalLightsColor(uv, currPosWS, rd, density);
+        float3 additionalLightsColor = GetStepAdditionalLightsColor(uv, currPosWS, rd, density, dist, jitter01);
         
         // TODO: Additional contributions? Reflection probes, etc...
         float3 stepColor = apvColor + ambientColor + (mainLightColor + additionalLightsColor) * GetPowderFactor(density);

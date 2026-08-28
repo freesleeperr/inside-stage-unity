@@ -37,6 +37,7 @@ Shader "Hidden/VolumetricFog"
             #pragma multi_compile_local_fragment _ _FOG_NOISE_DETAIL_ENABLED
             #pragma multi_compile_local_fragment _ _FOG_NOISE_MACRO_ENABLED
             #pragma multi_compile_local_fragment _ _FOG_SELF_SHADOWING_ENABLED
+            #pragma multi_compile_local_fragment _ _FOG_ADDITIONAL_LIGHTS_SELF_SHADOWING_ENABLED
             #pragma multi_compile_local_fragment _ _FOG_AREA_ENABLED
             #pragma multi_compile_local_fragment _ _FOG_AMBIENT_ENABLED
             #pragma multi_compile_local_fragment _ _FOG_PLACED_SHADOWS_ENABLED

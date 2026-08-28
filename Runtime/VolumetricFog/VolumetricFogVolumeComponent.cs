@@ -116,6 +116,12 @@ namespace FreeSleeperr.InsideStage
 		[Header("Additional Lights")]
 		[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]
 		public BoolParameter enableAdditionalLightsContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+		[Tooltip("When enabled, the fog casts shadows onto itself for the point and spot lights as well, and not only for the main light. It is what shapes the smoke of a scene lit by lamps instead of by a sun: without it every lamp lights its pocket of fog right through and the smoke reads as a flat blob. Every light that reaches the fog marches a short ray of its own, so it costs more the more lights overlap.")]
+		public BoolParameter enableAdditionalLightsSelfShadowing = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+		[Tooltip("How much the fog darkens itself for the additional lights. Higher values make the fog that hides behind other fog, as seen from the lamp, darker.")]
+		public ClampedFloatParameter additionalLightsSelfShadowingIntensity = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
+		[Tooltip("The distance, in meters, that is marched towards each additional light to gather the fog that shadows every raymarching step. Lamps light the fog around them rather than the whole world, so this is usually a lot shorter than the main light one. The march never goes past the light itself.")]
+		public MinFloatParameter additionalLightsSelfShadowingDistance = new MinFloatParameter(6.0f, 0.01f);
 
 		[Header("Performance & Quality")]
 		[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]

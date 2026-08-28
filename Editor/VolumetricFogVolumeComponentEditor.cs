@@ -58,6 +58,9 @@ namespace FreeSleeperr.InsideStage.Editor
 		private SerializedDataParameter selfShadowingDistance;
 
 		private SerializedDataParameter enableAdditionalLightsContribution;
+		private SerializedDataParameter enableAdditionalLightsSelfShadowing;
+		private SerializedDataParameter additionalLightsSelfShadowingIntensity;
+		private SerializedDataParameter additionalLightsSelfShadowingDistance;
 
 		private SerializedDataParameter maxSteps;
 		private SerializedDataParameter blurIterations;
@@ -123,6 +126,9 @@ namespace FreeSleeperr.InsideStage.Editor
 			selfShadowingDistance = Unpack(pf.Find(x => x.selfShadowingDistance));
 
 			enableAdditionalLightsContribution = Unpack(pf.Find(x => x.enableAdditionalLightsContribution));
+			enableAdditionalLightsSelfShadowing = Unpack(pf.Find(x => x.enableAdditionalLightsSelfShadowing));
+			additionalLightsSelfShadowingIntensity = Unpack(pf.Find(x => x.additionalLightsSelfShadowingIntensity));
+			additionalLightsSelfShadowingDistance = Unpack(pf.Find(x => x.additionalLightsSelfShadowingDistance));
 
 			maxSteps = Unpack(pf.Find(x => x.maxSteps));
 			blurIterations = Unpack(pf.Find(x => x.blurIterations));
@@ -224,6 +230,15 @@ namespace FreeSleeperr.InsideStage.Editor
 			}
 
 			PropertyField(enableAdditionalLightsContribution);
+			if (enabledAdditionalLightsContribution)
+			{
+				PropertyField(enableAdditionalLightsSelfShadowing);
+				if (enableAdditionalLightsSelfShadowing.overrideState.boolValue && enableAdditionalLightsSelfShadowing.value.boolValue)
+				{
+					PropertyField(additionalLightsSelfShadowingIntensity);
+					PropertyField(additionalLightsSelfShadowingDistance);
+				}
+			}
 
 			PropertyField(maxSteps);
 			PropertyField(blurIterations);

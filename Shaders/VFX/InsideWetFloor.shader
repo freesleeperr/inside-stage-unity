@@ -1,32 +1,54 @@
-// A lit surface that blends a planar reflection on top of itself, which is what a wet floor is. The reflection comes
-// from the PlanarReflection component, which renders the scene mirrored across its plane into _PlanarReflectionTexture.
+// A film of standing water laid over the floor as a piece of geometry. The whole of the mesh is water, and the whole of
+// it mirrors: what the surface shows is the scene reflected in it, with the floor underneath bent up through it and a
+// few glints of the lamps left on the ripples. There is no dry concrete in here any more. The floor already draws the
+// dry part of itself, and the water fades into it wherever the mesh says there is less of it.
+//
+// The mirror comes from the PlanarReflection component, which renders the scene mirrored across its plane into
+// _PlanarReflectionTexture, so it is sampled with the very same screen space coordinates as the fragment being shaded.
+// The refraction is the floor itself, read back out of the URP opaque texture and bent the other way by the same
+// ripples: two layers moving against each other is what keeps water reading as something with a bottom to it rather
+// than as a sheet of chrome. That grab is why this pass draws in the transparent queue, and it is why the URP asset
+// needs Opaque Texture ticked — with it off the water has nothing to look through and the refraction comes back black.
+//
+// The shape of the water is the shape of the mesh. A puddle is a piece of geometry an artist lays on the floor, the same
+// way the occluders and the bounce lights in this package are shapes placed by hand, so the mask texture and the vertex
+// alpha both default to one and the whole mesh is water unless one of them says otherwise. Thinning the vertex alpha
+// out at the rim is what lets a puddle run out into the floor instead of ending at its own silhouette.
 Shader "Inside/Wet Floor"
 {
     Properties
     {
-        _BaseMap("Base Map", 2D) = "white" {}
-        _BaseColor("Base Color", Color) = (0.04, 0.045, 0.05, 1.0)
+        [Header(Water)]
+        _WaterMask("Water Mask", 2D) = "white" {}
+        _VertexAlphaMask("Vertex Alpha Mask", Range(0.0, 1.0)) = 1.0
+        _WaterTint("Water Tint", Color) = (0.5, 0.55, 0.6, 1.0)
+        _Smoothness("Smoothness", Range(0.0, 1.0)) = 0.95
+
+        [Header(Ripples)]
         _RippleTiling("Ripple Tiling", Float) = 0.35
         _RippleStrength("Ripple Strength", Range(0.0, 2.0)) = 0.5
         _RippleSpeed("Ripple Speed", Float) = 0.35
-        _Smoothness("Smoothness", Range(0.0, 1.0)) = 0.85
-        _Metallic("Metallic", Range(0.0, 1.0)) = 0.0
+        _RippleFadeDistance("Ripple Fade Distance", Float) = 14.0
 
-        [Header(Planar Reflection)]
-        _ReflectionStrength("Reflection Strength", Range(0.0, 1.0)) = 0.75
+        [Header(Reflection)]
+        _ReflectionStrength("Reflection Strength", Range(0.0, 1.0)) = 1.0
         _ReflectionTint("Reflection Tint", Color) = (1.0, 1.0, 1.0, 1.0)
-        _ReflectionFresnelPower("Reflection Fresnel Power", Range(0.5, 8.0)) = 4.0
-        _ReflectionMinimum("Reflection Facing Amount", Range(0.0, 1.0)) = 0.12
         _ReflectionDistortion("Reflection Distortion", Range(0.0, 0.25)) = 0.03
+        _ReflectionStretch("Reflection Vertical Stretch", Range(1.0, 6.0)) = 2.5
+        _ReflectionBlur("Reflection Blur", Range(0.0, 1.0)) = 0.4
+
+        [Header(Refraction)]
+        _RefractionAmount("Refraction Amount", Range(0.0, 1.0)) = 0.25
+        _RefractionDistortion("Refraction Distortion", Range(0.0, 0.1)) = 0.02
     }
 
     SubShader
     {
         Tags
         {
-            "RenderType" = "Opaque"
+            "RenderType" = "Transparent"
             "RenderPipeline" = "UniversalPipeline"
-            "Queue" = "Geometry"
+            "Queue" = "Transparent"
         }
 
         HLSLINCLUDE
@@ -34,18 +56,21 @@ Shader "Inside/Wet Floor"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
         CBUFFER_START(UnityPerMaterial)
-            float4 _BaseMap_ST;
-            half4 _BaseColor;
+            float4 _WaterMask_ST;
+            half4 _WaterTint;
             half4 _ReflectionTint;
+            half _VertexAlphaMask;
+            half _Smoothness;
             half _RippleTiling;
             half _RippleStrength;
             half _RippleSpeed;
-            half _Smoothness;
-            half _Metallic;
+            half _RippleFadeDistance;
             half _ReflectionStrength;
-            half _ReflectionFresnelPower;
-            half _ReflectionMinimum;
             half _ReflectionDistortion;
+            half _ReflectionStretch;
+            half _ReflectionBlur;
+            half _RefractionAmount;
+            half _RefractionDistortion;
         CBUFFER_END
 
         ENDHLSL
@@ -54,6 +79,14 @@ Shader "Inside/Wet Floor"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+
+            // The water is composited over the floor it lies on rather than replacing it, which is what lets the rim of
+            // the mesh thin out into the dry floor with no seam. Depth is left to the floor as well: the two are the same
+            // plane to within a few millimetres, and writing the water into it only buys z-fighting.
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            ZTest LEqual
+            Cull Back
 
             HLSLPROGRAM
 
@@ -75,9 +108,12 @@ Shader "Inside/Wet Floor"
             #pragma multi_compile_instancing
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
-            TEXTURE2D(_BaseMap);
-            SAMPLER(sampler_BaseMap);
+            // The shape of the water, in the UV of the mesh. It defaults to white, so a mesh cut to the shape of the
+            // puddle needs no texture at all: the mesh is the shape.
+            TEXTURE2D(_WaterMask);
+            SAMPLER(sampler_WaterMask);
             // Written every frame by the PlanarReflection component. It holds the scene as seen from the mirrored
             // camera, so it is sampled with the very same screen space coordinates as the fragment being shaded.
             TEXTURE2D(_PlanarReflectionTexture);
@@ -90,6 +126,7 @@ Shader "Inside/Wet Floor"
                 float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
                 float2 lightmapUV : TEXCOORD1;
+                half4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -97,6 +134,7 @@ Shader "Inside/Wet Floor"
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                half4 color : COLOR;
                 float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 float4 tangentWS : TEXCOORD3;
@@ -122,7 +160,8 @@ Shader "Inside/Wet Floor"
                 output.positionWS = positionInputs.positionWS;
                 output.normalWS = normalInputs.normalWS;
                 output.tangentWS = float4(normalInputs.tangentWS, input.tangentOS.w * GetOddNegativeScale());
-                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.uv = TRANSFORM_TEX(input.uv, _WaterMask);
+                output.color = input.color;
                 output.shadowCoord = GetShadowCoord(positionInputs);
 
                 OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
@@ -137,7 +176,9 @@ Shader "Inside/Wet Floor"
 
             // Gets the tangent space normal of the ripples. They are built out of a handful of waves crossing each
             // other at unrelated angles and speeds, which never lines up into a visible repeat and costs no texture.
-            half3 GetRippleNormalTS(float2 uv)
+            // The amount flattens them back towards the plane, which is what stops the far end of the room from
+            // breaking up into a shimmer too fine for the frame to hold.
+            half3 GetRippleNormalTS(float2 uv, half amount)
             {
                 float2 p = uv * _RippleTiling;
                 float t = _Time.y * _RippleSpeed;
@@ -147,7 +188,38 @@ Shader "Inside/Wet Floor"
                 slope += float2(cos(p.y * 11.0 - t * 0.9), cos(p.x * 9.0 + t * 1.7)) * 0.3;
                 slope += float2(cos((p.x + p.y) * 17.0 + t * 2.1), cos((p.x - p.y) * 15.0 - t * 1.9)) * 0.15;
 
-                return normalize(half3(slope * _RippleStrength * 0.15, 1.0));
+                return normalize(half3(slope * _RippleStrength * amount * 0.15, 1.0));
+            }
+
+            // Gets how much water covers the pixel, from nothing at all to a film deep enough to mirror. Both the mask
+            // and the vertex alpha default to one, so an untouched mesh is water from edge to edge; painting the vertex
+            // alpha down at the rim is how the water is made to run out before the geometry does.
+            half GetWaterAmount(float2 uv, half vertexAlpha)
+            {
+                half mask = SAMPLE_TEXTURE2D(_WaterMask, sampler_WaterMask, uv).r;
+
+                return saturate(mask * lerp(1.0, vertexAlpha, _VertexAlphaMask));
+            }
+
+            // Samples the reflection with a small cross of taps, because a film of water a few millimetres deep never
+            // returns a sharp image: what it reflects is broken up by the water moving underneath it. The taps are spread
+            // twice as far along the vertical axis, matching the direction the reflection is stretched in, so the blur
+            // smears the image the way water does rather than fogging it evenly.
+            half3 SampleReflection(float2 uv, half radius)
+            {
+                half3 reflection = SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv)).rgb;
+
+                if (radius <= 0.0)
+                    return reflection;
+
+                float2 offset = float2(radius, radius * 2.0);
+
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv + float2(offset.x, 0.0))).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv - float2(offset.x, 0.0))).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv + float2(0.0, offset.y))).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv - float2(0.0, offset.y))).rgb;
+
+                return reflection * 0.2;
             }
 
             half4 Fragment(Varyings input) : SV_Target
@@ -155,20 +227,30 @@ Shader "Inside/Wet Floor"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                half3 normalTS = GetRippleNormalTS(input.positionWS.xz);
+                float3 viewOffset = GetCameraPositionWS() - input.positionWS;
+                half viewDistance = length(viewOffset);
+                half3 viewDirWS = viewOffset / max(viewDistance, 0.0001);
+
+                half water = GetWaterAmount(input.uv, input.color.a);
+
+                // Ripples only travel across the water, and they stop being resolvable long before the floor runs out, so
+                // they fade with distance rather than turning the far end of the room into a shimmer. Distant water goes
+                // back to being the flat mirror it actually is.
+                half rippleAmount = water * (_RippleFadeDistance / (_RippleFadeDistance + viewDistance));
+                half3 normalTS = GetRippleNormalTS(input.positionWS.xz, rippleAmount);
 
                 float sgn = input.tangentWS.w;
                 float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
                 half3x3 tangentToWorld = half3x3(input.tangentWS.xyz, bitangent.xyz, input.normalWS.xyz);
                 half3 normalWS = normalize(TransformTangentToWorld(normalTS, tangentToWorld));
 
-                half3 viewDirWS = SafeNormalize(GetCameraPositionWS() - input.positionWS);
-
+                // The water has no colour of its own. Everything it shows comes from the mirror and from the floor read
+                // back through it, so the lit surface is here for one thing only: the glints the lamps leave where a
+                // ripple happens to be tilted towards them, which is what stops a mirror from reading as a hole.
                 SurfaceData surfaceData = (SurfaceData)0;
-                half4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
-                surfaceData.albedo = baseMap.rgb * _BaseColor.rgb;
+                surfaceData.albedo = half3(0.0, 0.0, 0.0);
                 surfaceData.alpha = 1.0;
-                surfaceData.metallic = _Metallic;
+                surfaceData.metallic = 0.0;
                 surfaceData.smoothness = _Smoothness;
                 surfaceData.normalTS = normalTS;
                 surfaceData.occlusion = 1.0;
@@ -184,22 +266,34 @@ Shader "Inside/Wet Floor"
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUV);
 
-                half4 color = UniversalFragmentPBR(inputData, surfaceData);
+                half3 glints = UniversalFragmentPBR(inputData, surfaceData).rgb;
+
+                float2 screenUV = inputData.normalizedScreenSpaceUV;
 
                 // The ripples bend the reflection instead of the geometry, which is what sells the surface as a film of
-                // water rather than as a mirror.
-                float2 reflectionUV = inputData.normalizedScreenSpaceUV + normalTS.xy * _ReflectionDistortion;
-                half3 reflection = SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, reflectionUV).rgb;
+                // water rather than as a mirror. The bend is stretched along the vertical axis of the screen, because
+                // that is the direction a reflection travels in: a slope tilting towards the camera moves what it
+                // reflects up or down the image several times as far as it moves it sideways.
+                float2 reflectionOffset = normalTS.xy * _ReflectionDistortion * float2(1.0, _ReflectionStretch);
+                half3 reflection = SampleReflection(screenUV + reflectionOffset, _ReflectionBlur * 0.006);
 
-                // Grazing angles reflect nearly everything while facing ones reflect very little, which is what keeps
-                // the far end of the floor bright and the part right under the camera dark.
-                half fresnel = pow(1.0 - saturate(dot(viewDirWS, normalWS)), _ReflectionFresnelPower);
-                half reflectionAmount = saturate(_ReflectionStrength * lerp(_ReflectionMinimum, 1.0, fresnel));
+                // What is under the water is the floor, and the floor has already been drawn: the opaque texture holds it
+                // lit, bounced and shadowed, one copy behind this pass. Bending it the opposite way to the reflection is
+                // the whole of the refraction — the two layers slide against each other as the ripples go past, which is
+                // what tells the eye there is a depth between them.
+                float2 refractionOffset = -normalTS.xy * _RefractionDistortion;
+                half3 underwater = SampleSceneColor(saturate(screenUV + refractionOffset)) * _WaterTint.rgb;
 
-                color.rgb = lerp(color.rgb, reflection * _ReflectionTint.rgb, reflectionAmount);
-                color.rgb = MixFog(color.rgb, inputData.fogCoord);
+                // The hand placed shade reaches the water the same way it reaches every other surface, except that it has
+                // to be applied by hand here: what the water shows is a mirror and a grab rather than an indirect term
+                // for URP to shade. Without it a puddle stays lit in the middle of a shadow an occluder has laid down.
+                AmbientOcclusionFactor aoFactor = CreateAmbientOcclusionFactor(screenUV, 1.0);
 
-                return half4(color.rgb, 1.0);
+                half3 color = reflection * _ReflectionStrength * _ReflectionTint.rgb + underwater * _RefractionAmount;
+                color = color * aoFactor.indirectAmbientOcclusion + glints;
+                color = MixFog(color, inputData.fogCoord);
+
+                return half4(color, water);
             }
 
             ENDHLSL

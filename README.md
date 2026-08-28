@@ -17,7 +17,7 @@ Note on Unity 6: the volumetric fog supports both render graph and compatibility
 ### Inside Stage
 
 - **Hand placed indirect lighting.** Spheres and capsules that darken whatever surface is near them, and boxes and capsules that throw colored light back onto it, standing in for the indirect bounce a lightmap would have baked. Up to 16 occluders and 8 bounce lights contribute at once, and both are evaluated in a single pass. The shade is applied to the indirect term of each surface as it is shaded rather than to the finished image.
-- **Planar reflection.** Renders the scene mirrored across a plane into a texture, which the included `Inside/Wet Floor` shader blends on top of a lit surface. The texture goes onto the reflective surfaces themselves, so a scene can hold several reflective planes.
+- **Planar reflection.** Renders the scene mirrored across a plane into a texture, which the included `Inside/Wet Floor` shader shows as standing water: a full mirror over the whole of its mesh, with the floor underneath refracted back through it. The texture goes onto the reflective surfaces themselves, so a scene can hold several reflective planes.
 - **Dither and grain.** Ordered dithering that keeps long dark gradients from banding on an 8 bit target, plus shadow biased film grain.
 - **Editor tool.** `Tools/Inside/Light Stage` relights an existing scene, deriving every light position from the bounds of the object named `Floor`.
 
@@ -98,7 +98,19 @@ Bounce lights that fall entirely outside the frame are dropped before the slots 
 
 ### Planar reflection and the wet floor
 
-Add a `Rendering/Planar Reflection` component to the flat surface that should reflect, and give that surface a material using the `Inside/Wet Floor` shader. The component renders the scene mirrored across its own transform plane, writes the result into `_PlanarReflectionTexture` on the reflective renderers themselves, and the shader blends it on top of a lit surface with a fresnel term and a small animated normal distortion.
+Add a `Rendering/Planar Reflection` component to the flat surface that should reflect, and give that surface a material using the `Inside/Wet Floor` shader. The component renders the scene mirrored across its own transform plane and writes the result into `_PlanarReflectionTexture` on the reflective renderers themselves.
+
+The shader treats the whole of its mesh as standing water. It mirrors, at full strength across the mesh rather than only where the view grazes it, and it lays the floor underneath back over the mirror, read out of the URP opaque texture and bent the other way by the same ripples. Two layers sliding against each other is what keeps the surface reading as water with a bottom to it rather than as a sheet of chrome. **The URP asset needs `Opaque Texture` ticked**: the refraction is that grab, and with it off the water has nothing to look through and comes back black. The pass draws in the transparent queue and composites over the floor, so the water can thin out into the dry floor at the rim of the mesh with no seam, and the mesh does not need to be a separate flat piece of floor sitting a millimetre above the real one.
+
+On the material:
+
+- **Water Mask** and **Vertex Alpha Mask** are how much water there is, in the UV of the mesh and in its vertex colours. Both default to full, so a mesh cut to the shape of the puddle needs neither: the mesh is the shape. Painting the vertex alpha down at the rim is what lets the water run out into the floor instead of ending at the silhouette of the mesh. A mesh with no vertex colour channel at all wants `Vertex Alpha Mask` at zero.
+- **Water Tint** is the colour the water gives whatever shows through it. It is a multiplier over the floor below, so it darkens and cools rather than adding anything of its own.
+- **Smoothness** is how tight the glints of the lamps are on the ripples. It is the only lighting the surface does; everything else it shows is the mirror and the floor beneath.
+- **Ripple Tiling**, **Strength** and **Speed** shape the waves, which are a handful of cosines crossing at unrelated angles rather than a texture. **Ripple Fade Distance** flattens them back to a plane with distance, before they get too fine for the frame to hold and turn the far end of the room into a shimmer.
+- **Reflection Strength** is how much of the mirror reaches the surface. It defaults to one, which is a full reflection over the whole mesh.
+- **Reflection Tint**, **Distortion**, **Vertical Stretch** and **Blur** dial the mirror in. The distortion is stretched along the vertical axis of the screen because that is the direction a reflection travels in, and the blur is a small cross of taps, because a film of water a few millimetres deep never returns a sharp image.
+- **Refraction Amount** is how much of the floor underneath shows back through the water, and **Refraction Distortion** is how far the ripples bend it. Small values are the point: the refraction is there to move against the reflection, not to compete with it.
 
 Because the texture goes onto the renderers rather than into a global, a scene can hold as many reflective planes as it can afford. It is kept per camera as well, so the scene view and the game view do not overwrite each other's point of view. Note that writing to the renderers uses a material property block, which takes those renderers out of the SRP batcher.
 
@@ -146,6 +158,7 @@ The fog is uniform by default, with only its height driving the density. To turn
 7. `Noise Fade Distance` is the distance from the camera at which the noise fades back into uniform fog. Raymarching steps get longer with distance, so the noise aliases when it is far away. Set it to a value below the fog `Distance` if you see noise flickering in the distance. Zero disables the fade.
 8. `Powder Intensity` darkens the light scattered by the thinnest parts of the fog, which adds contrast and makes the clouds of fog look fluffier.
 9. `Enable Self Shadowing`, inside the `Main Light` section, makes the fog cast shadows onto itself. It is what gives the clouds of fog bright edges and dark cores, and it is the single parameter that makes them read as volumes rather than as flat patches. `Self Shadowing Intensity` controls how dark they get, while `Self Shadowing Distance` is how far the light march looks for the fog that occludes each step.
+10. `Enable Additional Lights Self Shadowing`, inside the `Additional Lights` section, does the same for every point and spot light. A scene lit by lamps rather than by a sun has no main light at all, so the main light march does nothing there and every pocket of fog is lit right through: this is the parameter that shapes it. `Additional Lights Self Shadowing Distance` is usually a lot shorter than the main light one, since a lamp lights the fog around it rather than the whole world, and the march never goes past the light itself.
 
 The noise textures are procedurally generated the first time they are needed, which takes a few hundred milliseconds. Enabling the noise while in edit mode gets that cost out of the way before entering play mode.
 
@@ -154,6 +167,7 @@ Some notes about performance and quality:
 - The noise is sampled at every raymarching step, so both `Max Steps` and the noise settings drive the cost.
 - Dense noise with few raymarching steps leads to temporal noise. Increase `Max Steps`, the blur iterations, or lower the noise frequency by increasing the tile sizes.
 - Self shadowing marches six extra samples towards the main light at every raymarching step that finds fog, so it is by far the most expensive of the noise related settings. The detail noise is skipped in that march, since those steps are too long to resolve it anyway.
+- The additional lights self shadowing marches four more samples per light, and every light that reaches a step pays for its own march. It costs whatever the lights in range of the fog make it cost, so it grows with how many of them overlap rather than with the step count alone.
 
 ## How to hold the fog inside local volumes
 
@@ -169,6 +183,19 @@ By default the fog fills the whole world up to the `Distance` set in the volume.
 While `Area Global Density` is zero, the raymarching is restricted to the part of the view ray that crosses the areas, so all of the steps are spent on the fog that is actually there and it resolves with a lot more detail than the same step count spread over the whole fog distance. Raising it above zero gives that up, since the ray then has to march the world as well.
 
 The areas only shape where the fog is. What carves the shadows out of it is the lighting: turn on `Enable Main Light Contribution` and make sure that the occluding geometry casts shadows, and the fog inside the areas is shadowed by the scene like any other surface.
+
+## How to make smoke
+
+Smoke is a fog area authored to churn at its own scale instead of drifting with the fog of the whole world:
+
+1. Tick `Override Noise` on the area. It then carries its own noise, and the one set in the volume no longer reaches it. The noise still has to be enabled in the volume for any of it to render.
+2. `Noise Tile Size` is what separates smoke from haze. A couple of meters gives the tight curl of smoke, while the tens of meters that suit a bank of fog spread one blob across the whole area.
+3. Lower `Noise Coverage` until gaps of clear air open up between the tendrils. An area that is covered everywhere reads as a soft blob no matter how fine its noise is.
+4. `Noise Wind Direction` pointing up is what makes the smoke rise. `Noise Wind Speed` is how fast.
+5. Expect to need a much higher `Density Multiplier` than a haze area does. Smoke that is too thin averages its own noise out along the view ray and comes back smooth, and the `Start Distance` and `Full Density Distance` of the volume thin it further when it sits close to the camera.
+6. Turn on `Enable Additional Lights Self Shadowing` in the volume. Without it the lamp lights the whole puff evenly and the noise reads as a flat pattern rather than as a volume.
+
+Several areas placed as overlapping lobes read as one puff, and since the areas are placed by hand they can be parented to whatever the smoke should follow.
 
 ## Known limitations
 
@@ -201,7 +228,7 @@ The areas only shape where the fog is. What carves the shadows out of it is the 
 - A render graph path for the Inside Stage effects.
 - Screen space planar reflections, as a cheaper alternative to the mirrored camera.
 - Smoke: local density volumes with an emitter, a lifetime and their own noise animation.
-- Volumetric fog: WebGL support, quarter resolution rendering, reprojection, better transparency support, and self shadowing for additional lights.
+- Volumetric fog: WebGL support, quarter resolution rendering, reprojection, and better transparency support.
 
 ## Credits
 

@@ -104,6 +104,9 @@ namespace FreeSleeperr.InsideStage
 		private static readonly int PowderIntensityId = Shader.PropertyToID("_PowderIntensity");
 		private static readonly int SelfShadowingStepLengthId = Shader.PropertyToID("_SelfShadowingStepLength");
 		private static readonly int SelfShadowingIntensityId = Shader.PropertyToID("_SelfShadowingIntensity");
+		private static readonly int AdditionalLightsSelfShadowingDistanceId = Shader.PropertyToID("_AdditionalLightsSelfShadowingDistance");
+		private static readonly int AdditionalLightsSelfShadowingStepFractionId = Shader.PropertyToID("_AdditionalLightsSelfShadowingStepFraction");
+		private static readonly int AdditionalLightsSelfShadowingIntensityId = Shader.PropertyToID("_AdditionalLightsSelfShadowingIntensity");
 
 		private static readonly int FogShapeNoiseTextureId = Shader.PropertyToID("_FogShapeNoiseTexture");
 		private static readonly int FogDetailNoiseTextureId = Shader.PropertyToID("_FogDetailNoiseTexture");
@@ -144,10 +147,12 @@ namespace FreeSleeperr.InsideStage
 		private const string FogNoiseDetailKeyword = "_FOG_NOISE_DETAIL_ENABLED";
 		private const string FogNoiseMacroKeyword = "_FOG_NOISE_MACRO_ENABLED";
 		private const string FogSelfShadowingKeyword = "_FOG_SELF_SHADOWING_ENABLED";
+		private const string FogAdditionalLightsSelfShadowingKeyword = "_FOG_ADDITIONAL_LIGHTS_SELF_SHADOWING_ENABLED";
 		private const string FogPlacedShadowsKeyword = "_FOG_PLACED_SHADOWS_ENABLED";
 
-		// Both have to be kept in sync with their counterparts from VolumetricFog.hlsl.
+		// All three have to be kept in sync with their counterparts from VolumetricFog.hlsl.
 		private const int SelfShadowingSteps = 6;
+		private const int AdditionalLightsSelfShadowingSteps = 4;
 		private const float SelfShadowingStepGrowth = 2.0f;
 
 		// It has to be kept in sync with its counterpart from VolumetricFogArea.hlsl.
@@ -459,6 +464,7 @@ namespace FreeSleeperr.InsideStage
 
 			UpdateLightsParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution, enableAdditionalLightsContribution, mainLightIndex, visibleLights);
 			UpdateSelfShadowingParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution);
+			UpdateAdditionalLightsSelfShadowingParameters(volumetricFogMaterial, fogVolume, enableAdditionalLightsContribution);
 			UpdateAmbientParameters(volumetricFogMaterial, fogVolume);
 			UpdateNoiseParameters(volumetricFogMaterial, fogVolume);
 			UpdateAreaParameters(volumetricFogMaterial, fogVolume, cameraPositionWS);
@@ -633,6 +639,32 @@ namespace FreeSleeperr.InsideStage
 
 			volumetricFogMaterial.SetFloat(SelfShadowingStepLengthId, stepLength);
 			volumetricFogMaterial.SetFloat(SelfShadowingIntensityId, fogVolume.selfShadowingIntensity.value);
+		}
+
+		/// <summary>
+		/// Updates the parameters of the light march that makes the fog shadow itself for every additional light. It is
+		/// what shapes the fog of a scene lit by lamps rather than by a sun, where the main light march does nothing,
+		/// so it is kept apart from it and skipped altogether when the additional lights do not contribute to the fog.
+		/// </summary>
+		/// <param name="volumetricFogMaterial"></param>
+		/// <param name="fogVolume"></param>
+		/// <param name="enableAdditionalLightsContribution"></param>
+		private static void UpdateAdditionalLightsSelfShadowingParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume, bool enableAdditionalLightsContribution)
+		{
+			bool enableSelfShadowing = enableAdditionalLightsContribution && fogVolume.enableAdditionalLightsSelfShadowing.value && fogVolume.additionalLightsSelfShadowingIntensity.value > 0.0f;
+
+			CoreUtils.SetKeyword(volumetricFogMaterial, FogAdditionalLightsSelfShadowingKeyword, enableSelfShadowing);
+
+			if (!enableSelfShadowing)
+				return;
+
+			// The march is shortened at the light itself, so its length is only known in the shader. What is uploaded
+			// is the fraction of it that the first step takes, which makes all of the growing steps add up to exactly it.
+			float stepFraction = (SelfShadowingStepGrowth - 1.0f) / (Mathf.Pow(SelfShadowingStepGrowth, AdditionalLightsSelfShadowingSteps) - 1.0f);
+
+			volumetricFogMaterial.SetFloat(AdditionalLightsSelfShadowingDistanceId, fogVolume.additionalLightsSelfShadowingDistance.value);
+			volumetricFogMaterial.SetFloat(AdditionalLightsSelfShadowingStepFractionId, stepFraction);
+			volumetricFogMaterial.SetFloat(AdditionalLightsSelfShadowingIntensityId, fogVolume.additionalLightsSelfShadowingIntensity.value);
 		}
 
 		/// <summary>

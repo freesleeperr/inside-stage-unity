@@ -384,6 +384,15 @@ MonoBehaviour:
   enableAdditionalLightsContribution:
     m_OverrideState: 1
     m_Value: 1
+  enableAdditionalLightsSelfShadowing:
+    m_OverrideState: 1
+    m_Value: 1
+  additionalLightsSelfShadowingIntensity:
+    m_OverrideState: 1
+    m_Value: 0.7
+  additionalLightsSelfShadowingDistance:
+    m_OverrideState: 1
+    m_Value: 5
   maxSteps:
     m_OverrideState: 1
     m_Value: 167

@@ -294,6 +294,11 @@ namespace FreeSleeperr.InsideStage
 			reflectionTexture.hideFlags = HideFlags.HideAndDontSave;
 			reflectionTexture.useMipMap = false;
 			reflectionTexture.antiAliasing = 1;
+			reflectionTexture.filterMode = FilterMode.Bilinear;
+			// The surfaces reading this texture offset their sample to bend the reflection with the ripples, so a sample
+			// taken at the edge of the screen lands outside of it. Repeating would bring the opposite side of the frame
+			// back in along the seam.
+			reflectionTexture.wrapMode = TextureWrapMode.Clamp;
 			reflectionTexture.Create();
 
 			reflectionTextures[camera] = reflectionTexture;
