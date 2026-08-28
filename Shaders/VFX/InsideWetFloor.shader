@@ -207,17 +207,17 @@ Shader "Inside/Wet Floor"
             // smears the image the way water does rather than fogging it evenly.
             half3 SampleReflection(float2 uv, half radius)
             {
-                half3 reflection = SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv)).rgb;
+                half3 reflection = SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, uv).rgb;
 
                 if (radius <= 0.0)
                     return reflection;
 
                 float2 offset = float2(radius, radius * 2.0);
 
-                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv + float2(offset.x, 0.0))).rgb;
-                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv - float2(offset.x, 0.0))).rgb;
-                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv + float2(0.0, offset.y))).rgb;
-                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, saturate(uv - float2(0.0, offset.y))).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, uv + float2(offset.x, 0.0)).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, uv - float2(offset.x, 0.0)).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, uv + float2(0.0, offset.y)).rgb;
+                reflection += SAMPLE_TEXTURE2D(_PlanarReflectionTexture, sampler_PlanarReflectionTexture, uv - float2(0.0, offset.y)).rgb;
 
                 return reflection * 0.2;
             }
@@ -237,7 +237,9 @@ Shader "Inside/Wet Floor"
                 // they fade with distance rather than turning the far end of the room into a shimmer. Distant water goes
                 // back to being the flat mirror it actually is.
                 half rippleAmount = water * (_RippleFadeDistance / (_RippleFadeDistance + viewDistance));
-                half3 normalTS = GetRippleNormalTS(input.positionWS.xz, rippleAmount);
+                half3 normalTS = half3(0.0, 0.0, 1.0);
+                if (_RippleStrength > 0.0 && rippleAmount > 0.0)
+                    normalTS = GetRippleNormalTS(input.positionWS.xz, rippleAmount);
 
                 float sgn = input.tangentWS.w;
                 float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
@@ -275,14 +277,18 @@ Shader "Inside/Wet Floor"
                 // that is the direction a reflection travels in: a slope tilting towards the camera moves what it
                 // reflects up or down the image several times as far as it moves it sideways.
                 float2 reflectionOffset = normalTS.xy * _ReflectionDistortion * float2(1.0, _ReflectionStretch);
-                half3 reflection = SampleReflection(screenUV + reflectionOffset, _ReflectionBlur * 0.006);
+                half3 reflection = 0.0;
+                if (_ReflectionStrength > 0.0)
+                    reflection = SampleReflection(screenUV + reflectionOffset, _ReflectionBlur * 0.006);
 
                 // What is under the water is the floor, and the floor has already been drawn: the opaque texture holds it
                 // lit, bounced and shadowed, one copy behind this pass. Bending it the opposite way to the reflection is
                 // the whole of the refraction — the two layers slide against each other as the ripples go past, which is
                 // what tells the eye there is a depth between them.
                 float2 refractionOffset = -normalTS.xy * _RefractionDistortion;
-                half3 underwater = SampleSceneColor(saturate(screenUV + refractionOffset)) * _WaterTint.rgb;
+                half3 underwater = 0.0;
+                if (_RefractionAmount > 0.0)
+                    underwater = SampleSceneColor(saturate(screenUV + refractionOffset)) * _WaterTint.rgb;
 
                 // The hand placed shade reaches the water the same way it reaches every other surface, except that it has
                 // to be applied by hand here: what the water shows is a mirror and a grab rather than an indirect term

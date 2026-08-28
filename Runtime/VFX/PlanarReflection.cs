@@ -20,7 +20,7 @@ namespace FreeSleeperr.InsideStage
 	[AddComponentMenu("Rendering/Planar Reflection")]
 	public sealed class PlanarReflection : MonoBehaviour
 	{
-	#region Public Attributes
+		#region Public Attributes
 
 		[Tooltip("The surfaces the reflection is written onto. Leaving it empty uses every renderer on this object and its children, which is what a floor made of a single mesh wants.")]
 		public List<Renderer> targetRenderers = new List<Renderer>();
@@ -35,12 +35,12 @@ namespace FreeSleeperr.InsideStage
 		public bool renderShadows = false;
 		[Tooltip("Whether the reflection renders the volumetric fog and the rest of the post processing. It is expensive, and the fog is already visible through the reflected geometry.")]
 		public bool renderPostProcessing = false;
-		[Tooltip("Whether the reflection is also rendered for the scene view. It costs a second pass over the scene while the editor window is open, and it is the only way to see what the floor will actually look like without entering play mode.")]
-		public bool renderInSceneView = true;
+		[Tooltip("Whether the reflection is also rendered for the scene view. It costs a second pass over the scene while the editor window is open, so leave it off while authoring unless the preview is needed.")]
+		public bool renderInSceneView = false;
 
-	#endregion
+		#endregion
 
-	#region Private Attributes
+		#region Private Attributes
 
 		private static readonly int PlanarReflectionTextureId = Shader.PropertyToID("_PlanarReflectionTexture");
 
@@ -63,9 +63,9 @@ namespace FreeSleeperr.InsideStage
 		private Camera reflectionCamera;
 		private Renderer[] resolvedRenderers;
 
-	#endregion
+		#endregion
 
-	#region MonoBehaviour Methods
+		#region MonoBehaviour Methods
 
 		private void OnEnable()
 		{
@@ -102,9 +102,9 @@ namespace FreeSleeperr.InsideStage
 
 #endif
 
-	#endregion
+		#endregion
 
-	#region Methods
+		#region Methods
 
 		/// <summary>
 		/// Rebuilds the list of surfaces the reflection is written onto, from what has been authored or, failing that,
@@ -462,6 +462,6 @@ namespace FreeSleeperr.InsideStage
 				DestroyImmediate(obj);
 		}
 
-	#endregion
+		#endregion
 	}
 }

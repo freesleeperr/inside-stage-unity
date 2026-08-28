@@ -1516,7 +1516,7 @@ MonoBehaviour:
   clipPlaneOffset: 0.03
   renderShadows: 0
   renderPostProcessing: 0
-  renderInSceneView: 1
+  renderInSceneView: 0
 --- !u!1 &746278990
 GameObject:
   m_ObjectHideFlags: 0
