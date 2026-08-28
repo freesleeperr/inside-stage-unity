@@ -15,12 +15,13 @@ MonoBehaviour:
   m_Active: 1
   settings:
     ditherIntensity: 1
-    grainIntensity: 0.025
-    grainShadowBias: 0.85
-    grainResponse: 2
+    grainIntensity: 0.03
+    grainShadowBias: 0.8
+    grainResponse: 3.5
     animateGrain: 1
     renderPassEvent: 600
---- !u!114 &-1878332245247344467
+  ditherShader: {fileID: 4800000, guid: 1af6421d91d539049946216b66c849d5, type: 3}
+--- !u!114 &-2190138947219678205
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -29,35 +30,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
-  m_Name: SSAO
+  m_Script: {fileID: 11500000, guid: 2a86c3bcd32a4c8b87bd8877df732a86, type: 3}
+  m_Name: InsideIndirectLighting
   m_EditorClassIdentifier: 
-  m_Active: 0
-  m_Settings:
-    AOMethod: 1
-    Downsample: 0
-    AfterOpaque: 0
-    Source: 1
-    NormalSamples: 1
-    Intensity: 1.35
-    DirectLightingStrength: 0.25
-    Radius: 0.55
-    Samples: 0
-    BlurQuality: 0
-    Falloff: 120
-    SampleCount: -1
-  m_BlueNoise256Textures:
-  - {fileID: 4800000, guid: 5fd9a8feb75a4b5894c241777f519d4e, type: 3}
-  - {fileID: 4800000, guid: 93446b5c5339d4f00b85c159e1159b7c, type: 3}
-  - {fileID: 4800000, guid: d104b2fc1ca6445babb8e90b0758136b, type: 3}
-  - {fileID: 4800000, guid: a89bee29cffa951418fc1e2da94d1959, type: 3}
-  - {fileID: 4800000, guid: c56b7e0d4c7cb484e959caeeedae9bbf, type: 3}
-  - {fileID: 4800000, guid: 7b3ede40266cd49a395def176e1bc486, type: 3}
-  - {fileID: 4800000, guid: 6cda457ac28612740adb23da5d39ea92, type: 3}
-  - {fileID: 4800000, guid: f6783ab646d374f94b199774402a5144, type: 3}
-  - {fileID: 4800000, guid: e507fdfead5ca47e8b9a768b51c291a1, type: 3}
-  - {fileID: 4800000, guid: 29868e73b638e48ca99a19ea58c48d90, type: 3}
-  m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
+  m_Active: 1
+  settings:
+    occlusionIntensity: 1
+    occlusionDirectLightingStrength: 0.45
+    bounceIntensity: 1
+    resolution: 1
+    bounceRenderPassEvent: 300
+  indirectLightingShader: {fileID: 4800000, guid: c72a0aae4f604006801c0bbc0fcc8d17,
+    type: 3}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -75,12 +59,10 @@ MonoBehaviour:
       type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
-  - {fileID: -1878332245247344467}
-  - {fileID: -8065899093406734414}
+  - {fileID: -2190138947219678205}
   - {fileID: 485771331466849399}
-  - {fileID: 3774534135594569181}
-  - {fileID: 415644816484891142}
-  m_RendererFeatureMap: adc0de57c6d2eee5b2a7586f822b1090776c26c673cebd06dd4db348ccd66134067a5027c2aac405
+  - {fileID: -8065899093406734414}
+  m_RendererFeatureMap: 031c393a3b109be1776c26c673cebd06b2a7586f822b1090
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -129,22 +111,6 @@ MonoBehaviour:
   m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
---- !u!114 &415644816484891142
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 34dcf7997263d294c94c15bdd3ec0208, type: 3}
-  m_Name: AnalyticAmbientOcclusion
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  settings:
-    intensity: 1
-    renderPassEvent: 300
 --- !u!114 &485771331466849399
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -161,19 +127,3 @@ MonoBehaviour:
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb,
     type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
---- !u!114 &3774534135594569181
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a26b28d0183a79a4cb46432c1c5fceea, type: 3}
-  m_Name: InsideBounceLight
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  settings:
-    intensity: 1
-    renderPassEvent: 300

@@ -1,19 +1,27 @@
 {
   "name": "com.freesleeperr.insidestage",
-  "version": "0.1.0",
+  "version": "0.9.1",
   "displayName": "Inside Stage VFX",
-  "description": "用于实现类型inside渲染效果的工具包，Volumetric fog integrated into URP's volume system. Supports additional lights, shadows and cookies, as well as animated 3D noise to render cloud alike fog. Render graph support is available for Unity 6 and above.",
+  "description": "A URP toolkit for building INSIDE style scenes: volumetric light and fog integrated into the volume system, hand placed analytic ambient occlusion and bounce light, planar reflections for wet floors, and an ordered dither and grain pass. The fog supports additional lights, shadows and cookies, local fog areas and animated 3D noise for cloud alike fog.",
   "unity": "2022.3",
   "unityRelease": "18f1",
   "keywords": [
+    "urp",
+    "vfx",
     "volumetric",
     "fog",
+    "lighting",
+    "ambient-occlusion",
+    "bounce-light",
+    "planar-reflection",
+    "dither",
     "clouds",
-    "noise"
+    "noise",
+    "inside"
   ],
   "author": {
     "name": "freesleeperr",
-    "url": "",
+    "url": "https://github.com/freesleeperr",
     "email": "skyluckin@gmail.com"
   },
   "dependencies": {
@@ -21,8 +29,8 @@
   },
   "samples": [
     {
-      "displayName": "InsideStage Demo",
-      "description": "Complete InsideStage scene with lighting, materials, URP settings and volumetric fog setup.",
+      "displayName": "Inside Stage Demo",
+      "description": "Scn_InsideMood, the scene this package is developed against, with its URP settings, volume profile, materials and mesh: eight lights, seven fog areas, nine occluders, five bounce lights and a wet floor that reflects them.",
       "path": "Samples~/InsideStageDemo"
     }
   ],

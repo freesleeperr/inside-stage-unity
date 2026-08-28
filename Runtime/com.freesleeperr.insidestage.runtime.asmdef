@@ -1,6 +1,6 @@
 {
     "name": "com.freesleeperr.insidestage.runtime",
-    "rootNamespace": "",
+    "rootNamespace": "FreeSleeperr.InsideStage",
     "references": [
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime"

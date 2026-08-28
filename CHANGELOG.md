@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.9.1] - 2026-08-28
+
+* The `Inside Stage Demo` sample is now `Scn_InsideMood`, the scene this package is actually developed and tuned against, together with every asset that scene references. The sample used to be `Scn_Sample`, a copy taken once and then maintained by hand: every release since 0.7.0 has an entry in this file about the sample pointing at something in the development project, or holding a material that had been fixed on one side and not the other. Shipping the development scene itself is what stops that happening again.
+* The sample brings across the volume profile, the URP asset and the renderer asset that the scene was lit under, rather than copies of them with their own GUIDs. The copies had drifted: the fog, the dither and the indirect lighting in the sample were not configured the way the scene had been composed, so the imported sample did not look like the screenshots taken of it.
+* The `InsideWetFloor` material ships with the sample for the first time. The wet surface in the new scene uses the `Inside/Wet Floor` shader, and the material driving it lived in the development project.
+* The lamp shade mesh is unchanged but its object is now named `InsideLampShade` rather than `Lamp Shade`, matching the file it has always been shipped as.
+* Dropped `InsideBackdrop`, `InsideConcrete`, `InsideFloor`, `InsideTube` and `InsideWaterPuddle` from the sample, along with `Scn_Sample` itself. Nothing in the new scene references any of them, and a sample that imports assets its scene does not use is asking to be pulled apart in the wrong order.
+
+## [0.9.0] - 2026-08-28
+
+* The analytic ambient occlusion and the bounce light are now the one `Inside Indirect Lighting` renderer feature. They were a fullscreen pass each, and each of them sampled the depth and the normals of every pixel of the frame and reconstructed its world position before it could do anything with them, so the frame paid for that twice over. There is also no longer an ordering to get wrong between them: the bounce is evaluated first and the shade is applied on top of it, inside the one pass, which is what the two features only did correctly when they happened to be listed in the right order on the renderer.
+* **This replaces both of the old renderer features.** A renderer asset that holds `Analytic Ambient Occlusion` or `Inside Bounce Light` will come up with a missing script where each of them was. Remove those two entries and add `Inside Indirect Lighting` in their place. The `Analytic Occluder` and `Inside Bounce Light` components in the scene are unchanged and keep everything that was authored on them.
+* The shade is no longer multiplied over the finished frame. It is handed to the pipeline as `_ScreenSpaceOcclusionTexture`, the channel URP's own screen space ambient occlusion writes, so it lands on the indirect term of each surface as that surface is shaded. Multiplying it over the finished image meant it darkened the sky, the emissive surfaces and the light that reached a surface directly, none of which occlusion has any business touching.
+* Because of that, the shade now reads much more quietly in a scene lit almost entirely by direct light, which an INSIDE style scene usually is. The new `Occlusion Direct Lighting Strength` parameter puts a proportion of it back onto the direct light. It defaults to `0.25`, matching URP, and raising it towards one gets close to how the occlusion used to look.
+* Two consequences worth knowing about: the shade only reaches shaders that declare the `_SCREEN_SPACE_OCCLUSION` keyword, which URP's lit shaders and the `Inside/Wet Floor` shader do and an unlit shader does not; and it cannot be used alongside URP's own `Screen Space Ambient Occlusion` renderer feature, as the two write the same channel.
+* Added the `Resolution` parameter, which evaluates both halves at half the resolution of the camera. Both are broad and soft, so it is rarely visible and takes three quarters of the pixels out of the pass.
+* Occluders and bounce lights are now culled against the frame before the slots are handed out. A shape standing behind the camera used to take one of the sixteen or eight slots away from a shape that was actually in shot, and then be looped over by every pixel of the frame for the privilege. Each shape that survives also carries the bounds of everything it reaches, so a pixel rejects it with a subtraction rather than with a matrix multiplication and a square root.
+* The planar reflection writes its texture onto the reflective surfaces themselves rather than into a global. A second reflective plane used to overwrite the first, so only one of them could work in a scene.
+* The planar reflection now renders for the scene view as well, so a wet floor can be composed without entering play mode. It can be turned off with `Render In Scene View`.
+* The planar reflection keeps a texture per camera. A single one shared between the scene view and the game view would be resized back and forth every frame, and whichever rendered last left its point of view on the floor of the other.
+* The planar reflection renders through a render request on Unity 6, where `UniversalRenderPipeline.RenderSingleCamera` no longer exists.
+* Removed the duplicate `Samples` folder. This is the third changelog entry to say so, and this time the folder is gone: the reason it kept coming back is that its copy of the scene was the one open in the editor of the project the package is developed in, so the editor wrote it out again every time it saved.
+
+## [0.8.1] - 2026-08-28
+
+* A reflective surface no longer renders itself into its own reflection. `PlanarReflection` drew the very surface it was about to write the reflection for, so the surface sampled the texture it had written the frame before and fed the reflection back into itself frame after frame, until a fully reflective floor had settled into a flat block of colour with nothing of the scene left in it.
+* The wet floor material shipped with the sample was authored with every parameter at the end of its range: a fully reflective, rippleless, white and fully metallic mirror. `Reflection Facing Amount` at one in particular cancels the fresnel outright, so the floor showed the reflection alone rather than the lit surface with the reflection laid over it, and read as a hole cut into the deck of a dark room rather than as a puddle. It now uses the values the shader documents as its own defaults.
+* The puddle in the sample scene no longer renders the reflection with post processing. The reflection was being tonemapped once on its way into the texture and a second time along with the frame it was blended into, which crushed it towards black.
+
+## [0.8.0] - 2026-08-28
+
+* Removed the `Tools/Inside/Build Mood Scene` editor tool. It authored a whole scene in code into `Assets/Inside/`, which only ever made sense in the project the package was developed in: installed anywhere else it wrote a folder into the user's own project and overwrote it on every run. The `Inside Stage Demo` sample is now the one scene the package ships, and `Tools/Inside/Light Stage` remains for relighting a scene that already exists.
+* The sample scene no longer reaches outside of the package. Its global volume pointed at a volume profile that lived in the development project rather than at the profile shipped next to it, so an imported sample came up with an empty volume and no fog at all.
+* The lamp shade mesh is now shipped with the sample, as `Meshes/InsideLampShade.asset`. It used to be referenced from the development project, so the lamp imported with a missing mesh.
+* The sample's URP asset now points at the renderer asset shipped beside it instead of the one in the development project, so an imported sample no longer comes up with a renderer holding none of the effects.
+* The wall and the three crates in the sample scene were left on URP's built in `Lit` material, bright grey in a scene that is meant to be dark. They now use the `InsideConcrete` material that the sample already shipped.
+* Removed the duplicate `Samples` folder for real. The 0.7.0 entry below announced it, but the folder and its copy of the scene were still in the package.
+
+## [0.7.0] - 2026-08-28
+
+* The shaders behind the analytic ambient occlusion, the bounce light, the dither and the wet floor are now part of the package. They used to live in the project that the package was developed in, so installing the package anywhere else brought the C# across without them and those four effects silently did nothing.
+* Those three renderer features now hold a serialized reference to their shader instead of calling `Shader.Find` at runtime. `Shader.Find` only sees the shaders that made it into the build, and nothing references a hidden shader, so the effects worked in the editor and were missing in a player. They also log a warning now when the shader cannot be resolved, instead of disabling themselves without a word.
+* Everything in the package now lives in the `FreeSleeperr.InsideStage` and `FreeSleeperr.InsideStage.Editor` namespaces. Names as common as `PlanarReflection` and `Settings` used to sit in the global namespace of every project that installed the package.
+* Removed the duplicate `Samples` folder. It was imported into every project that installed the package, alongside the `Samples~` copy that the package manager imports on demand. Its scene, volume profile and puddle material, which were newer, were moved into `Samples~/InsideStageDemo`.
+* The package description, keywords and version now describe this package rather than the one it was forked from.
+
 ## [0.6.2] - 2026-08-25
 
 * Volumetric fog areas can now hold fog several at a time, instead of only the one closest to the camera being rendered. Up to eight of them contribute at once, which removes the popping that happened when the camera moved from one area to another.

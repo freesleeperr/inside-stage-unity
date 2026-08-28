@@ -2,144 +2,148 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-/// <summary>
-/// The volumetric fog renderer feature.
-/// </summary>
-[Tooltip("Adds support to render volumetric fog.")]
-[DisallowMultipleRendererFeature("Volumetric Fog")]
-public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
+namespace FreeSleeperr.InsideStage
 {
+	/// <summary>
+	/// The volumetric fog renderer feature.
+	/// </summary>
+	[Tooltip("Adds support to render volumetric fog.")]
+	[DisallowMultipleRendererFeature("Volumetric Fog")]
+	public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
+	{
 	#region Private Attributes
 
-	[HideInInspector]
-	[SerializeField] private Shader downsampleDepthShader;
-	[HideInInspector]
-	[SerializeField] private Shader volumetricFogShader;
+		[HideInInspector]
+		[SerializeField] private Shader downsampleDepthShader;
+		[HideInInspector]
+		[SerializeField] private Shader volumetricFogShader;
 
-	private Material downsampleDepthMaterial;
-	private Material volumetricFogMaterial;
+		private Material downsampleDepthMaterial;
+		private Material volumetricFogMaterial;
 
-	private VolumetricFogRenderPass volumetricFogRenderPass;
+		private VolumetricFogRenderPass volumetricFogRenderPass;
 
 	#endregion
 
 	#region Scriptable Renderer Feature Methods
 
-	/// <summary>
-	/// <inheritdoc/>
-	/// </summary>
-	public override void Create()
-	{
-		ValidateResourcesForVolumetricFogRenderPass(true);
-
-		volumetricFogRenderPass = new VolumetricFogRenderPass(downsampleDepthMaterial, volumetricFogMaterial, VolumetricFogRenderPass.DefaultRenderPassEvent);
-	}
-
-	/// <summary>
-	/// <inheritdoc/>
-	/// </summary>
-	/// <param name="renderer"></param>
-	/// <param name="renderingData"></param>
-	public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
-	{
-		bool isPostProcessEnabled = renderingData.postProcessingEnabled && renderingData.cameraData.postProcessEnabled;
-		bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled && ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType);
-
-		if (shouldAddVolumetricFogRenderPass)
+		/// <summary>
+		/// <inheritdoc/>
+		/// </summary>
+		public override void Create()
 		{
-			PrewarmNoiseTextures();
-			volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
-			volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
-			renderer.EnqueuePass(volumetricFogRenderPass);
-		}
-	}
+			ValidateResourcesForVolumetricFogRenderPass(true);
 
-	/// <summary>
-	/// <inheritdoc/>
-	/// </summary>
-	/// <param name="disposing"></param>
-	protected override void Dispose(bool disposing)
-	{
-		base.Dispose(disposing);
+			volumetricFogRenderPass = new VolumetricFogRenderPass(downsampleDepthMaterial, volumetricFogMaterial, VolumetricFogRenderPass.DefaultRenderPassEvent);
+		}
+
+		/// <summary>
+		/// <inheritdoc/>
+		/// </summary>
+		/// <param name="renderer"></param>
+		/// <param name="renderingData"></param>
+		public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+		{
+			bool isReflectionCamera = renderingData.cameraData.cameraType == CameraType.Reflection;
+			bool isPostProcessEnabled = isReflectionCamera || (renderingData.postProcessingEnabled && renderingData.cameraData.postProcessEnabled);
+			bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled && ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType);
+
+			if (shouldAddVolumetricFogRenderPass)
+			{
+				PrewarmNoiseTextures();
+				volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
+				volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
+				renderer.EnqueuePass(volumetricFogRenderPass);
+			}
+		}
+
+		/// <summary>
+		/// <inheritdoc/>
+		/// </summary>
+		/// <param name="disposing"></param>
+		protected override void Dispose(bool disposing)
+		{
+			base.Dispose(disposing);
 
 #if !UNITY_6000_4_OR_NEWER
-		volumetricFogRenderPass?.Dispose();
+			volumetricFogRenderPass?.Dispose();
 #endif
-		CoreUtils.Destroy(downsampleDepthMaterial);
-		CoreUtils.Destroy(volumetricFogMaterial);
-		VolumetricFogNoise.Dispose();
-	}
+			CoreUtils.Destroy(downsampleDepthMaterial);
+			CoreUtils.Destroy(volumetricFogMaterial);
+			VolumetricFogNoise.Dispose();
+		}
 
 	#endregion
 
 	#region Methods
 
-	/// <summary>
-	/// Validates the resources used by the volumetric fog render pass.
-	/// </summary>
-	/// <param name="forceRefresh"></param>
-	/// <returns></returns>
-	private bool ValidateResourcesForVolumetricFogRenderPass(bool forceRefresh)
-	{
-		if (forceRefresh)
+		/// <summary>
+		/// Validates the resources used by the volumetric fog render pass.
+		/// </summary>
+		/// <param name="forceRefresh"></param>
+		/// <returns></returns>
+		private bool ValidateResourcesForVolumetricFogRenderPass(bool forceRefresh)
 		{
+			if (forceRefresh)
+			{
 #if UNITY_EDITOR
-			downsampleDepthShader = Shader.Find("Hidden/DownsampleDepth");
-			volumetricFogShader = Shader.Find("Hidden/VolumetricFog");
+				downsampleDepthShader = Shader.Find("Hidden/DownsampleDepth");
+				volumetricFogShader = Shader.Find("Hidden/VolumetricFog");
 #endif
-			CoreUtils.Destroy(downsampleDepthMaterial);
-			downsampleDepthMaterial = CoreUtils.CreateEngineMaterial(downsampleDepthShader);
+				CoreUtils.Destroy(downsampleDepthMaterial);
+				downsampleDepthMaterial = CoreUtils.CreateEngineMaterial(downsampleDepthShader);
 
-			CoreUtils.Destroy(volumetricFogMaterial);
-			volumetricFogMaterial = CoreUtils.CreateEngineMaterial(volumetricFogShader);
+				CoreUtils.Destroy(volumetricFogMaterial);
+				volumetricFogMaterial = CoreUtils.CreateEngineMaterial(volumetricFogShader);
+			}
+
+			bool okDepth = downsampleDepthShader != null && downsampleDepthMaterial != null;
+			bool okVolumetric = volumetricFogShader != null && volumetricFogMaterial != null;
+
+			return okDepth && okVolumetric;
 		}
 
-		bool okDepth = downsampleDepthShader != null && downsampleDepthMaterial != null;
-		bool okVolumetric = volumetricFogShader != null && volumetricFogMaterial != null;
+		/// <summary>
+		/// Gets whether the volumetric fog render pass should be enqueued to the renderer.
+		/// </summary>
+		/// <param name="cameraType"></param>
+		/// <returns></returns>
+		private bool ShouldAddVolumetricFogRenderPass(CameraType cameraType)
+		{
+			VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
-		return okDepth && okVolumetric;
-	}
+			bool isVolumeOk = fogVolume != null && fogVolume.IsActive();
+			bool isCameraOk = cameraType != CameraType.Preview;
+			bool areResourcesOk = ValidateResourcesForVolumetricFogRenderPass(false);
 
-	/// <summary>
-	/// Gets whether the volumetric fog render pass should be enqueued to the renderer.
-	/// </summary>
-	/// <param name="cameraType"></param>
-	/// <returns></returns>
-	private bool ShouldAddVolumetricFogRenderPass(CameraType cameraType)
-	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
+			return isActive && isVolumeOk && isCameraOk && areResourcesOk;
+		}
 
-		bool isVolumeOk = fogVolume != null && fogVolume.IsActive();
-		bool isCameraOk = cameraType != CameraType.Preview && cameraType != CameraType.Reflection;
-		bool areResourcesOk = ValidateResourcesForVolumetricFogRenderPass(false);
+		/// <summary>
+		/// Generates the noise textures used by the fog before the render pass is enqueued, so that they are never
+		/// created while the render pass is being executed.
+		/// </summary>
+		private void PrewarmNoiseTextures()
+		{
+			VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
-		return isActive && isVolumeOk && isCameraOk && areResourcesOk;
-	}
+			bool isNoiseEnabled = fogVolume.enableNoise.value && fogVolume.noiseIntensity.value > 0.0f;
+			bool isDetailEnabled = fogVolume.enableNoiseDetail.value && fogVolume.noiseDetailIntensity.value > 0.0f;
 
-	/// <summary>
-	/// Generates the noise textures used by the fog before the render pass is enqueued, so that they are never
-	/// created while the render pass is being executed.
-	/// </summary>
-	private void PrewarmNoiseTextures()
-	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
+			VolumetricFogNoise.Prewarm(isNoiseEnabled, isDetailEnabled);
+		}
 
-		bool isNoiseEnabled = fogVolume.enableNoise.value && fogVolume.noiseIntensity.value > 0.0f;
-		bool isDetailEnabled = fogVolume.enableNoiseDetail.value && fogVolume.noiseDetailIntensity.value > 0.0f;
+		/// <summary>
+		/// Returns the render pass event for the volumetric fog.
+		/// </summary>
+		/// <returns></returns>
+		private RenderPassEvent GetRenderPassEvent()
+		{
+			VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
-		VolumetricFogNoise.Prewarm(isNoiseEnabled, isDetailEnabled);
-	}
-
-	/// <summary>
-	/// Returns the render pass event for the volumetric fog.
-	/// </summary>
-	/// <returns></returns>
-	private RenderPassEvent GetRenderPassEvent()
-	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-
-		return (RenderPassEvent)fogVolume.renderPassEvent.value;
-	}
+			return (RenderPassEvent)fogVolume.renderPassEvent.value;
+		}
 
 	#endregion
+	}
 }
