@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.13.2] - 2026-08-31
+
+- The sample scene no longer holds the smoke puff. `Smoke Puff` and the three lobes it was built from are gone, and the four haze areas that shape the room are what is left. The three lights that were lighting the puff stay, as they now light the haze that is still there. A point light was added to the room as well.
+- The four remaining areas serialize the `blendMode` added in 0.13.0 at its default, which is the `Max` they always behaved as.
+
 ## [0.13.1] - 2026-08-31
 
 - Fixed the volumetric fog failing to compile, and so rendering nothing, in any project with no `VolumetricFogArea` in its scene. The noise picks the parameters of the area that holds the position out of an array, guarded by a test against the index being negative, and with the areas compiled out that index is a compile time constant of minus one. The shader compiler resolves the indexing before the branch that would have kept it from ever happening, so it rejected the whole program with `array index out of bounds` over an access the running shader never makes. The index is now clamped apart from the test. The bug has been there since the fog areas shipped, and it only ever showed in projects that had no area at all, which is why the sample never hit it.
