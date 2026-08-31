@@ -124,6 +124,8 @@ namespace FreeSleeperr.InsideStage
 		public MinFloatParameter additionalLightsSelfShadowingDistance = new MinFloatParameter(6.0f, 0.01f);
 
 		[Header("Performance & Quality")]
+		[Tooltip("The resolution the fog is rendered at, before it is blurred and composited back onto the image. Quarter costs a fourth of what half does, which is the single biggest saving there is, and the fog pays for it with softer edges where it meets the geometry in front of it. Fog that is mostly a haze holds up at quarter; fog carved by tight noise or by narrow light shafts shows the loss.")]
+		public VolumetricFogResolutionParameter resolution = new VolumetricFogResolutionParameter(VolumetricFogResolution.Half);
 		[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
 		public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);
 		[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance.")]

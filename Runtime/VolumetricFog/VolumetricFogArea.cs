@@ -32,6 +32,8 @@ namespace FreeSleeperr.InsideStage
 		[Tooltip("A multiplier color for the light that the fog scatters inside of this area. It allows one pocket of fog to be colder or warmer than the next one without needing a volume of its own.")]
 		[ColorUsage(false, true)]
 		public Color tint = Color.white;
+		[Tooltip("How the fog of this area is combined with the fog of the areas it overlaps. Max keeps the densest of them, so sliding one area over another never thickens the fog where they cross, and the area that wins a position hands it its tint and its noise as well. Additive piles the fog of this area, carved by its own noise, on top of whatever the other areas already left there, which is what lets a puff of smoke sit inside a bank of haze instead of replacing it. Additive costs one extra noise evaluation wherever this area reaches.")]
+		public VolumetricFogAreaBlendMode blendMode = VolumetricFogAreaBlendMode.Max;
 
 		[Header("Noise Override")]
 		[Tooltip("Gives this area its own noise instead of the one authored in the volume, so that a small pocket of fog can churn at its own scale and drift on its own wind. The noise has to be enabled in the volume for this to have any effect.")]
@@ -118,6 +120,15 @@ namespace FreeSleeperr.InsideStage
 
 				return new Vector4(border.x, border.y, border.z, densityMultiplier);
 			}
+		}
+
+		/// <summary>
+		/// Whether this area piles its fog on top of the areas it overlaps instead of competing with them for the
+		/// densest one, as the shader reads it out of a float array.
+		/// </summary>
+		public float BlendModeAsFloat
+		{
+			get { return (float)(int)blendMode; }
 		}
 
 		/// <summary>

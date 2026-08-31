@@ -62,6 +62,7 @@ namespace FreeSleeperr.InsideStage.Editor
 		private SerializedDataParameter additionalLightsSelfShadowingIntensity;
 		private SerializedDataParameter additionalLightsSelfShadowingDistance;
 
+		private SerializedDataParameter resolution;
 		private SerializedDataParameter maxSteps;
 		private SerializedDataParameter blurIterations;
 		private SerializedDataParameter enabled;
@@ -130,6 +131,7 @@ namespace FreeSleeperr.InsideStage.Editor
 			additionalLightsSelfShadowingIntensity = Unpack(pf.Find(x => x.additionalLightsSelfShadowingIntensity));
 			additionalLightsSelfShadowingDistance = Unpack(pf.Find(x => x.additionalLightsSelfShadowingDistance));
 
+			resolution = Unpack(pf.Find(x => x.resolution));
 			maxSteps = Unpack(pf.Find(x => x.maxSteps));
 			blurIterations = Unpack(pf.Find(x => x.blurIterations));
 			enabled = Unpack(pf.Find(x => x.enabled));
@@ -240,6 +242,7 @@ namespace FreeSleeperr.InsideStage.Editor
 				}
 			}
 
+			PropertyField(resolution);
 			PropertyField(maxSteps);
 			PropertyField(blurIterations);
 			PropertyField(enabled);

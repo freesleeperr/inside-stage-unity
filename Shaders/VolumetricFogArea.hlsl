@@ -35,6 +35,10 @@ float4 _FogAreasNoiseShapeOffset[MAX_VOLUMETRIC_FOG_AREAS];
 // The offset of the detail noise in xyz and the intensity that erodes the box with it in w.
 float4 _FogAreasNoiseDetailOffset[MAX_VOLUMETRIC_FOG_AREAS];
 
+// Whether every box piles its fog on top of the ones it overlaps instead of competing with them for the densest,
+// as the VolumetricFogAreaBlendMode of the area. Zero is max, one is additive.
+float _FogAreasBlendMode[MAX_VOLUMETRIC_FOG_AREAS];
+
 float _FogAreasGlobalDensityMultiplier;
 int _FogAreasCount;
 
@@ -44,11 +48,37 @@ bool IsFogConfinedToAreas()
     return _FogAreasGlobalDensityMultiplier <= 0.0;
 }
 
-// Gets the density multiplier of the fog areas, which fade the fog in across their borders, along with the tint of the
-// area that ends up holding the fog. Areas that overlap keep the densest of them instead of adding up, so that sliding
-// one area over another does not thicken the fog where they cross, and the tint follows that very same area so that
-// the color never blends into something that was not authored. Outside of all of them the fog keeps the global
-// multiplier, which is zero when the fog is confined to the areas, and is left untinted.
+// Whether the given area piles its fog on top of the ones it overlaps instead of competing with them for the densest.
+bool IsFogAreaAdditive(int index)
+{
+    return _FogAreasBlendMode[index] > 0.5;
+}
+
+// Gets the density multiplier of one fog area at the given world position, faded in across its borders. It is zero
+// outside of the box. The noise is not part of it, so that every caller can carve it with the one it needs.
+float GetFogAreaMultiplier(int index, float3 posWS)
+{
+    // Inside of the box every axis goes from -1 to 1, so the distance to the closest face is one minus its absolute value.
+    float3 posAS = mul(_FogAreasWorldToLocal[index], float4(posWS, 1.0)).xyz;
+    float3 distanceToFaces = 1.0 - abs(posAS);
+
+    UNITY_BRANCH
+    if (any(distanceToFaces <= 0.0))
+        return 0.0;
+
+    float4 borderAndDensity = _FogAreasBorderAndDensity[index];
+    float3 fade = saturate(distanceToFaces / max(borderAndDensity.xyz, VOLUMETRIC_FOG_AREA_MIN_BORDER));
+    fade = fade * fade * (3.0 - 2.0 * fade);
+
+    return fade.x * fade.y * fade.z * borderAndDensity.w;
+}
+
+// Gets the density multiplier of the fog areas that blend by keeping the densest of them, along with the tint of the
+// area that ends up holding the fog. Overlapping them does not thicken the fog where they cross, so that sliding one
+// area over another leaves the fog alone, and the tint follows that very same area so that the color never blends into
+// something that was not authored. The areas that blend by adding are resolved apart, as each of them carries its own
+// noise and so cannot be reduced to one multiplier here. Outside of all of them the fog keeps the global multiplier,
+// which is zero when the fog is confined to the areas, and is left untinted.
 float GetFogAreaDensityMultiplierAndTint(float3 posWS, out float3 tint, out int areaIndex)
 {
     tint = float3(1.0, 1.0, 1.0);
@@ -62,19 +92,11 @@ float GetFogAreaDensityMultiplierAndTint(float3 posWS, out float3 tint, out int 
     UNITY_LOOP
     for (int i = 0; i < _FogAreasCount; ++i)
     {
-        // Inside of the box every axis goes from -1 to 1, so the distance to the closest face is one minus its absolute value.
-        float3 posAS = mul(_FogAreasWorldToLocal[i], float4(posWS, 1.0)).xyz;
-        float3 distanceToFaces = 1.0 - abs(posAS);
-
         UNITY_BRANCH
-        if (any(distanceToFaces <= 0.0))
+        if (IsFogAreaAdditive(i))
             continue;
 
-        float4 borderAndDensity = _FogAreasBorderAndDensity[i];
-        float3 fade = saturate(distanceToFaces / max(borderAndDensity.xyz, VOLUMETRIC_FOG_AREA_MIN_BORDER));
-        fade = fade * fade * (3.0 - 2.0 * fade);
-
-        float areaMultiplier = fade.x * fade.y * fade.z * borderAndDensity.w;
+        float areaMultiplier = GetFogAreaMultiplier(i, posWS);
 
         UNITY_BRANCH
         if (areaMultiplier > multiplier)

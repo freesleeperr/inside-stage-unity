@@ -19,16 +19,6 @@ namespace FreeSleeperr.InsideStage
 	{
 	#region Definitions
 
-		/// <summary>
-		/// Downsampling factor for the camera depth texture that the volumetric fog will use to render
-		/// the fog.
-		/// </summary>
-		private enum DownsampleFactor : byte
-		{
-			// TODO: Add quarter downsample factor.
-			Half = 2,
-		}
-
 #if UNITY_6000_0_OR_NEWER
 
 		/// <summary>
@@ -81,6 +71,7 @@ namespace FreeSleeperr.InsideStage
 		private const string VolumetricFogUpsampleCompositionRTName = "_VolumetricFogUpsampleComposition";
 
 		private static readonly int DownsampledCameraDepthTextureId = Shader.PropertyToID("_DownsampledCameraDepthTexture");
+		private static readonly int DownsampleFactorId = Shader.PropertyToID("_DownsampleFactor");
 		private static readonly int VolumetricFogTextureId = Shader.PropertyToID("_VolumetricFogTexture");
 
 		private static readonly int FrameCountId = Shader.PropertyToID("_FrameCount");
@@ -126,6 +117,7 @@ namespace FreeSleeperr.InsideStage
 		private static readonly int FogAreasWorldToLocalId = Shader.PropertyToID("_FogAreasWorldToLocal");
 		private static readonly int FogAreasBorderAndDensityId = Shader.PropertyToID("_FogAreasBorderAndDensity");
 		private static readonly int FogAreasTintId = Shader.PropertyToID("_FogAreasTint");
+		private static readonly int FogAreasBlendModeId = Shader.PropertyToID("_FogAreasBlendMode");
 		private static readonly int FogAreasGlobalDensityMultiplierId = Shader.PropertyToID("_FogAreasGlobalDensityMultiplier");
 		private static readonly int FogAreasCountId = Shader.PropertyToID("_FogAreasCount");
 		private static readonly int FogAreasNoiseParamsId = Shader.PropertyToID("_FogAreasNoiseParams");
@@ -166,6 +158,7 @@ namespace FreeSleeperr.InsideStage
 		private static readonly Matrix4x4[] FogAreasWorldToLocal = new Matrix4x4[MaxFogAreas];
 		private static readonly Vector4[] FogAreasBorderAndDensity = new Vector4[MaxFogAreas];
 		private static readonly Vector4[] FogAreasTint = new Vector4[MaxFogAreas];
+		private static readonly float[] FogAreasBlendMode = new float[MaxFogAreas];
 		private static readonly Vector4[] FogAreasNoiseParams = new Vector4[MaxFogAreas];
 		private static readonly Vector4[] FogAreasNoiseShapeOffset = new Vector4[MaxFogAreas];
 		private static readonly Vector4[] FogAreasNoiseDetailOffset = new Vector4[MaxFogAreas];
@@ -279,8 +272,9 @@ namespace FreeSleeperr.InsideStage
 			RenderTextureFormat originalColorFormat = cameraTargetDescriptor.colorFormat;
 			Vector2Int originalResolution = new Vector2Int(cameraTargetDescriptor.width, cameraTargetDescriptor.height);
 
-			cameraTargetDescriptor.width /= (int)DownsampleFactor.Half;
-			cameraTargetDescriptor.height /= (int)DownsampleFactor.Half;
+			int downsampleFactor = GetDownsampleFactor();
+			cameraTargetDescriptor.width /= downsampleFactor;
+			cameraTargetDescriptor.height /= downsampleFactor;
 			cameraTargetDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
 			ReAllocateIfNeeded(ref downsampledCameraDepthRTHandle, cameraTargetDescriptor, wrapMode: TextureWrapMode.Clamp, name: DownsampledCameraDepthRTName);
 
@@ -308,6 +302,7 @@ namespace FreeSleeperr.InsideStage
 
 			using (new ProfilingScope(cmd, downsampleDepthProfilingSampler))
 			{
+				downsampleDepthMaterial.SetFloat(DownsampleFactorId, GetDownsampleFactor());
 				Blitter.BlitCameraTexture(cmd, downsampledCameraDepthRTHandle, downsampledCameraDepthRTHandle, downsampleDepthMaterial, downsampleDepthPassIndex);
 				volumetricFogMaterial.SetTexture(DownsampledCameraDepthTextureId, downsampledCameraDepthRTHandle);
 			}
@@ -430,6 +425,16 @@ namespace FreeSleeperr.InsideStage
 	#region Methods
 
 		/// <summary>
+		/// Gets the factor the camera resolution is divided by to render the fog, which is what the fog targets are
+		/// allocated with and what the depth downsample gathers a block of the full resolution depth for.
+		/// </summary>
+		/// <returns></returns>
+		private static int GetDownsampleFactor()
+		{
+			return (int)VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>().resolution.value;
+		}
+
+		/// <summary>
 		/// Updates the volumetric fog material parameters.
 		/// </summary>
 		/// <param name="volumetricFogMaterial"></param>
@@ -531,6 +536,7 @@ namespace FreeSleeperr.InsideStage
 				FogAreasWorldToLocal[i] = fogArea.WorldToAreaMatrix;
 				FogAreasBorderAndDensity[i] = fogArea.BorderAndDensity;
 				FogAreasTint[i] = fogArea.tint.linear;
+				FogAreasBlendMode[i] = fogArea.BlendModeAsFloat;
 
 				// The areas that author a noise of their own drift it on their own wind, so the offsets are wrapped here
 				// the very same way the global ones are instead of being scaled in the shader, where wrapping the global
@@ -556,6 +562,7 @@ namespace FreeSleeperr.InsideStage
 			volumetricFogMaterial.SetMatrixArray(FogAreasWorldToLocalId, FogAreasWorldToLocal);
 			volumetricFogMaterial.SetVectorArray(FogAreasBorderAndDensityId, FogAreasBorderAndDensity);
 			volumetricFogMaterial.SetVectorArray(FogAreasTintId, FogAreasTint);
+			volumetricFogMaterial.SetFloatArray(FogAreasBlendModeId, FogAreasBlendMode);
 			volumetricFogMaterial.SetVectorArray(FogAreasNoiseParamsId, FogAreasNoiseParams);
 			volumetricFogMaterial.SetVectorArray(FogAreasNoiseShapeOffsetId, FogAreasNoiseShapeOffset);
 			volumetricFogMaterial.SetVectorArray(FogAreasNoiseDetailOffsetId, FogAreasNoiseDetailOffset);
@@ -817,8 +824,9 @@ namespace FreeSleeperr.InsideStage
 			RenderTextureFormat originalColorFormat = cameraTargetDescriptor.colorFormat;
 			Vector2Int originalResolution = new Vector2Int(cameraTargetDescriptor.width, cameraTargetDescriptor.height);
 
-			cameraTargetDescriptor.width /= (int)DownsampleFactor.Half;
-			cameraTargetDescriptor.height /= (int)DownsampleFactor.Half;
+			int downsampleFactor = GetDownsampleFactor();
+			cameraTargetDescriptor.width /= downsampleFactor;
+			cameraTargetDescriptor.height /= downsampleFactor;
 			cameraTargetDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
 			downsampledCameraDepthTarget = UniversalRenderer.CreateRenderGraphTexture(renderGraph, cameraTargetDescriptor, DownsampledCameraDepthRTName, false);
 
@@ -841,7 +849,11 @@ namespace FreeSleeperr.InsideStage
 		{
 			PassStage stage = passData.stage;
 
-			if (stage == PassStage.VolumetricFogRender)
+			if (stage == PassStage.DownsampleDepth)
+			{
+				passData.material.SetFloat(DownsampleFactorId, GetDownsampleFactor());
+			}
+			else if (stage == PassStage.VolumetricFogRender)
 			{
 				passData.material.SetTexture(DownsampledCameraDepthTextureId, passData.downsampledCameraDepthTarget);
 				UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.lightData.additionalLightsCount, passData.lightData.visibleLights, passData.cameraPositionWS);

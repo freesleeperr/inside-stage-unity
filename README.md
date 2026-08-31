@@ -164,10 +164,12 @@ The noise textures are procedurally generated the first time they are needed, wh
 
 Some notes about performance and quality:
 
+- `Resolution`, in the `Performance & Quality` section, is the factor the camera resolution is divided by to render the fog. `Quarter` costs a fourth of what `Half` does and is the single biggest saving there is, paid for with softer edges where the fog meets the geometry in front of it. Fog that is mostly a haze holds up at quarter; fog carved by tight noise or by narrow light shafts shows the loss.
 - The noise is sampled at every raymarching step, so both `Max Steps` and the noise settings drive the cost.
+- Every fog area with `Blend Mode` set to `Additive` adds a noise evaluation of its own wherever it reaches, on top of the one the fog already pays for. Areas left on `Max` cost what they always did, however many of them overlap.
 - Dense noise with few raymarching steps leads to temporal noise. Increase `Max Steps`, the blur iterations, or lower the noise frequency by increasing the tile sizes.
 - Self shadowing marches six extra samples towards the main light at every raymarching step that finds fog, so it is by far the most expensive of the noise related settings. The detail noise is skipped in that march, since those steps are too long to resolve it anyway.
-- The additional lights self shadowing marches four more samples per light, and every light that reaches a step pays for its own march. It costs whatever the lights in range of the fog make it cost, so it grows with how many of them overlap rather than with the step count alone.
+- The additional lights self shadowing marches four more samples per light, but only for the lights that actually reach the step being shaded: a light whose distance attenuation and scattering have already faded it out pays for nothing at all. It still grows with how many lamps overlap, so what costs is the fog that several of them light at once, not the number of lamps in the scene.
 
 ## How to hold the fog inside local volumes
 
@@ -177,7 +179,8 @@ By default the fog fills the whole world up to the `Distance` set in the volume.
 2. `Size` is the size of the box that holds the fog, in local units. The box is placed, rotated and scaled with the transform, so it can be stretched and turned to follow whatever it is filling.
 3. `Horizontal Border` and `Vertical Border` are the fraction of the box, measured from its sides towards its center, across which the fog fades in. Leave them at zero only when the box is fully hidden behind geometry, as its edges are hard otherwise.
 4. `Density Multiplier` scales the density that the volume sets, for this area alone. Expect to need values well above one: an area is only a few meters deep, while the global fog accumulates across the whole fog distance, so the same density reads much thinner inside of a box.
-5. Up to eight areas are rendered at the same time. When there are more in the scene, the eight closest to the camera are the ones that are kept. Areas that overlap keep the densest of them rather than adding up.
+5. `Blend Mode` is how this area is combined with the ones it overlaps. `Max` keeps the densest of them, so sliding one area over another never thickens the fog where they cross, and the area that wins a position hands it its tint and its noise as well. `Additive` piles the fog of this area, carved by its own noise, on top of whatever the other areas already left there. The tint of the result is then the tint of every area that contributed, weighted by how much of the fog each of them put there.
+6. Up to eight areas are rendered at the same time. When there are more in the scene, the eight closest to the camera are the ones that are kept.
 6. `Area Global Density`, in the `Fog Areas` section of the volume override, is how much fog is left outside of the areas, as a fraction of the density set in the volume. Keep it at zero to have fog only inside of the areas, or raise it to lay a thin haze everywhere and let the areas read as denser pockets on top of it.
 
 While `Area Global Density` is zero, the raymarching is restricted to the part of the view ray that crosses the areas, so all of the steps are spent on the fog that is actually there and it resolves with a lot more detail than the same step count spread over the whole fog distance. Raising it above zero gives that up, since the ray then has to march the world as well.
@@ -196,6 +199,8 @@ Smoke is a fog area authored to churn at its own scale instead of drifting with 
 6. Turn on `Enable Additional Lights Self Shadowing` in the volume. Without it the lamp lights the whole puff evenly and the noise reads as a flat pattern rather than as a volume.
 
 Several areas placed as overlapping lobes read as one puff, and since the areas are placed by hand they can be parented to whatever the smoke should follow.
+
+A puff placed inside a bank of haze wants `Blend Mode` set to `Additive`. On the default `Max` the denser of the two wins the position outright, so the puff does not thicken the haze, it replaces it: the noise switches from the one field to the other across the surface where their densities cross, and that surface reads as a border the puff is fighting the haze along. Additive lets the two pile up, which is what makes the puff sit inside the haze and be lit along with it. It costs the puff one noise evaluation of its own wherever it reaches, including inside the light marches that shadow the fog.
 
 ## Known limitations
 

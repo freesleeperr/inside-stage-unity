@@ -37,6 +37,10 @@
 // The transmittance below which the fog is considered to hide everything behind it and the ray stops marching.
 #define VOLUMETRIC_FOG_MIN_TRANSMITTANCE 0.005
 
+// The product of distance attenuation and scattering below which one additional light is considered not to reach the
+// fog at all, so that everything it would cost is skipped.
+#define VOLUMETRIC_FOG_MIN_ADDITIONAL_LIGHT_CONTRIBUTION 1e-4
+
 int _FrameCount;
 uint _CustomAdditionalLightsCount;
 float _Distance;
@@ -153,28 +157,70 @@ float GetFogHeightMultiplier(float posWSY)
 // tint of the fog area that holds it. The tint is white where no area does.
 float GetFogDensityAndAreaTint(float3 posWS, float dist, bool includeDetail, out float3 areaTint)
 {
+    areaTint = float3(1.0, 1.0, 1.0);
+
     float t = GetFogHeightMultiplier(posWS.y);
 
     // Skip the rest of the work where the height gradient has already faded the fog out.
     UNITY_BRANCH
     if (t <= 0.0)
-    {
-        areaTint = float3(1.0, 1.0, 1.0);
-
         return 0.0;
-    }
 
+    t *= GetFogDistanceMultiplier(dist);
+
+    // The same, once the distance gradient has had its say.
+    UNITY_BRANCH
+    if (t <= 0.0)
+        return 0.0;
+
+    // The areas that blend by keeping the densest of them, along with the global fog, resolve to a single multiplier
+    // and to the noise of whichever of them won the position.
     int areaIndex = -1;
-    t *= GetFogDistanceMultiplier(dist) * GetFogAreaDensityMultiplierAndTint(posWS, areaTint, areaIndex);
+    float3 maxTint;
+    float multiplier = GetFogAreaDensityMultiplierAndTint(posWS, maxTint, areaIndex);
 
     float density = 0.0;
+    float3 tintedDensity = float3(0.0, 0.0, 0.0);
 
-    // Skip sampling the noise where the distance gradient or the area borders have already faded the fog out.
+    // Skip sampling the noise where the area borders have already faded the fog out.
     UNITY_BRANCH
-    if (t > 0.0)
-        density = _Density * t * GetFogNoiseDensityMultiplier(posWS, dist, includeDetail, areaIndex);
+    if (multiplier > 0.0)
+    {
+        density = multiplier * GetFogNoiseDensityMultiplier(posWS, dist, includeDetail, areaIndex);
+        tintedDensity = density * maxTint;
+    }
 
-    return density;
+#if _FOG_AREA_ENABLED
+    // The areas that blend by adding then pile their own fog, carved by their own noise, on top of that. Each of them
+    // pays for a noise evaluation of its own wherever it reaches, and that is what buys a puff of smoke that sits
+    // inside a bank of haze and is lit along with it, instead of replacing the haze with itself.
+    UNITY_LOOP
+    for (int i = 0; i < _FogAreasCount; ++i)
+    {
+        UNITY_BRANCH
+        if (!IsFogAreaAdditive(i))
+            continue;
+
+        float areaMultiplier = GetFogAreaMultiplier(i, posWS);
+
+        UNITY_BRANCH
+        if (areaMultiplier <= 0.0)
+            continue;
+
+        float areaDensity = areaMultiplier * GetFogNoiseDensityMultiplier(posWS, dist, includeDetail, i);
+
+        density += areaDensity;
+        tintedDensity += areaDensity * _FogAreasTint[i].rgb;
+    }
+#endif
+
+    // The fog is tinted by every area that left something here, each of them weighted by how much of it that area put
+    // there, so that the color of a puff bleeds into the haze around it instead of switching across its border.
+    UNITY_BRANCH
+    if (density > 0.0)
+        areaTint = tintedDensity / density;
+
+    return _Density * t * density;
 }
 
 // Gets the fog density at the given world position, which is at the given distance from the camera. It is the one used
@@ -319,11 +365,7 @@ float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, floa
         if (_Scatterings[lightIndex] > 0.0)
         {
             Light additionalLight = GetAdditionalPerObjectLight(lightIndex, currPosWS);
-            additionalLight.shadowAttenuation = VolumetricAdditionalLightRealtimeShadow(lightIndex, currPosWS, additionalLight.direction);
-            additionalLight.shadowAttenuation *= GetPlacedShadowsAttenuation(currPosWS, additionalLight.direction);
-#if _LIGHT_COOKIES
-            additionalLight.color *= SampleAdditionalLightCookie(lightIndex, currPosWS);
-#endif
+
             // See universal\ShaderLibrary\RealtimeLights.hlsl - GetAdditionalPerObjectLight.
 #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
             float4 additionalLightPos = _AdditionalLightsBuffer[lightIndex].position;
@@ -335,11 +377,6 @@ float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, floa
             float3 distToPos = additionalLightPos.xyz - currPosWS;
             float distToPosMagnitudeSq = dot(distToPos, distToPos);
 
-            // Point and spot lights store their position and have their w set to one, while directional lights store
-            // their direction there and have it set to zero, so those are marched the whole distance instead.
-            float distanceToLight = additionalLightPos.w > 0.0 ? sqrt(distToPosMagnitudeSq) : FLT_MAX;
-            additionalLight.shadowAttenuation *= GetFogAdditionalLightSelfShadowing(currPosWS, additionalLight.direction, distanceToLight, dist, jitter);
-
             float newScattering = smoothstep(0.0, _RadiiSq[lightIndex], distToPosMagnitudeSq) ;
             newScattering *= newScattering;
             newScattering *= _Scatterings[lightIndex];
@@ -347,9 +384,29 @@ float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, floa
             // If directional lights are also considered as additional lights when more than 1 is used, ignore the previous code when it is a directional light.
             // They store direction in additionalLightPos.xyz and have .w set to 0, while point and spotlights have it set to 1.
             // newScattering = lerp(1.0, newScattering, additionalLightPos.w);
-    
-            float phase = CornetteShanksPhaseFunction(_Anisotropies[lightIndex], dot(rd, additionalLight.direction));
-            additionalLightsColor += (additionalLight.color * (additionalLight.shadowAttenuation * additionalLight.distanceAttenuation * phase * density * newScattering));
+
+            // Everything this light scatters is scaled by its distance attenuation and by its scattering, and both are
+            // cheap: the attenuation comes with the light itself and the scattering is a couple of multiplies. Once
+            // their product is negligible the light can no longer brighten this step in any noticeable way, so the
+            // shadow map fetch, the placed shadows, the cookie and the whole light march that it would pay for are
+            // skipped. A lamp lights the fog around it rather than the whole world, so most of the steps of a scene
+            // lit by lamps end up out of reach of most of them.
+            UNITY_BRANCH
+            if (additionalLight.distanceAttenuation * newScattering > VOLUMETRIC_FOG_MIN_ADDITIONAL_LIGHT_CONTRIBUTION)
+            {
+                additionalLight.shadowAttenuation = VolumetricAdditionalLightRealtimeShadow(lightIndex, currPosWS, additionalLight.direction);
+                additionalLight.shadowAttenuation *= GetPlacedShadowsAttenuation(currPosWS, additionalLight.direction);
+#if _LIGHT_COOKIES
+                additionalLight.color *= SampleAdditionalLightCookie(lightIndex, currPosWS);
+#endif
+                // Point and spot lights store their position and have their w set to one, while directional lights store
+                // their direction there and have it set to zero, so those are marched the whole distance instead.
+                float distanceToLight = additionalLightPos.w > 0.0 ? sqrt(distToPosMagnitudeSq) : FLT_MAX;
+                additionalLight.shadowAttenuation *= GetFogAdditionalLightSelfShadowing(currPosWS, additionalLight.direction, distanceToLight, dist, jitter);
+
+                float phase = CornetteShanksPhaseFunction(_Anisotropies[lightIndex], dot(rd, additionalLight.direction));
+                additionalLightsColor += (additionalLight.color * (additionalLight.shadowAttenuation * additionalLight.distanceAttenuation * phase * density * newScattering));
+            }
         }
     LIGHT_LOOP_END
 
