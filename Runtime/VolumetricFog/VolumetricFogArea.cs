@@ -18,44 +18,44 @@ namespace FreeSleeperr.InsideStage
 	{
 	#region Public Attributes
 
-		[Tooltip("The size, in local units, of the box that the fog fills. It is scaled by the transform scale.")]
+		[Tooltip("雾所填充的盒体尺寸，单位为局部单位，会随 Transform 的缩放一起缩放。")]
 		public Vector3 size = new Vector3(50.0f, 20.0f, 50.0f);
-		[Tooltip("The fraction of the box, measured from its sides towards its center, across which the fog fades in. Zero leads to hard edges, while one makes the fog fade in from the sides all the way to the center of the box.")]
+		[Tooltip("从盒体侧面向中心算起，雾淡入所占的比例。为 0 时边缘生硬，为 1 时雾从侧面一路淡入到盒体中心。")]
 		[Range(0.0f, 1.0f)]
 		public float horizontalBorder = 0.25f;
-		[Tooltip("The fraction of the box, measured from its top and bottom towards its center, across which the fog fades in.")]
+		[Tooltip("从盒体顶部和底部向中心算起，雾淡入所占的比例。")]
 		[Range(0.0f, 1.0f)]
 		public float verticalBorder = 0.25f;
-		[Tooltip("A multiplier for the density that the fog has inside of this area. It allows to make one area denser than the density set in the volume without touching the volume itself.")]
+		[Tooltip("这个区域内雾浓度的倍率。不必改动 Volume 本身，就能让某一块区域比 Volume 里设定的浓度更浓。")]
 		[Min(0.0f)]
 		public float densityMultiplier = 1.0f;
-		[Tooltip("A multiplier color for the light that the fog scatters inside of this area. It allows one pocket of fog to be colder or warmer than the next one without needing a volume of its own.")]
+		[Tooltip("这个区域内雾所散射光线的颜色倍率。不必为它单独建一个 Volume，就能让这团雾比旁边的更冷或更暖。")]
 		[ColorUsage(false, true)]
 		public Color tint = Color.white;
-		[Tooltip("How the fog of this area is combined with the fog of the areas it overlaps. Max keeps the densest of them, so sliding one area over another never thickens the fog where they cross, and the area that wins a position hands it its tint and its noise as well. Additive piles the fog of this area, carved by its own noise, on top of whatever the other areas already left there, which is what lets a puff of smoke sit inside a bank of haze instead of replacing it. Additive costs one extra noise evaluation wherever this area reaches.")]
+		[Tooltip("这个区域的雾与它所重叠的其他区域如何混合。Max 取其中最浓的一个，因此把两个区域叠在一起也不会让交界处变厚，胜出的区域同时决定该处的染色和噪声。Additive 则把这个区域的雾（由它自己的噪声雕刻）叠加到其他区域已经留下的雾之上，这样一团烟就能待在一片薄雾里，而不是把薄雾替换掉。Additive 会在这个区域覆盖的范围内多算一次噪声。")]
 		public VolumetricFogAreaBlendMode blendMode = VolumetricFogAreaBlendMode.Max;
 
 		[Header("Noise Override")]
-		[Tooltip("Gives this area its own noise instead of the one authored in the volume, so that a small pocket of fog can churn at its own scale and drift on its own wind. The noise has to be enabled in the volume for this to have any effect.")]
+		[Tooltip("让这个区域使用自己的噪声，而不是 Volume 里设定的那一套，这样一小团雾就能按自己的尺度翻涌、随自己的风飘动。需要在 Volume 中启用噪声，本项才会生效。")]
 		public bool overrideNoise = false;
-		[Tooltip("The size, in world units, of the shape noise that carves this area. Small sizes give the tight curl of smoke, while big ones give the slow banks of a haze.")]
+		[Tooltip("雕刻这个区域的形状噪声尺寸，单位为世界单位。尺寸小时呈现烟雾般紧凑的翻卷，尺寸大时呈现缓慢流动的雾墙。")]
 		[Min(0.01f)]
 		public float noiseTileSize = 3.0f;
-		[Tooltip("The size, in world units, of the detail noise that erodes the edges of this area into wisps.")]
+		[Tooltip("把这个区域边缘侵蚀成缕状的细节噪声尺寸，单位为世界单位。")]
 		[Min(0.01f)]
 		public float noiseDetailTileSize = 0.8f;
-		[Tooltip("How much of the density of this area the noise is allowed to carve away. Zero leaves the fog uniform.")]
+		[Tooltip("噪声最多能削掉这个区域多少浓度。为 0 时雾是均匀的。")]
 		[Range(0.0f, 1.0f)]
 		public float noiseIntensity = 0.9f;
-		[Tooltip("How much of this area the fog covers. Low values open up the gaps that separate the fog into tendrils.")]
+		[Tooltip("雾覆盖这个区域的比例。数值越低，缝隙越多，雾会被分成一缕一缕的。")]
 		[Range(0.0f, 1.0f)]
 		public float noiseCoverage = 0.55f;
-		[Tooltip("How much the detail noise erodes this area.")]
+		[Tooltip("细节噪声对这个区域的侵蚀程度。")]
 		[Range(0.0f, 1.0f)]
 		public float noiseDetailIntensity = 0.45f;
-		[Tooltip("The direction that the fog of this area is blown towards. Pointing it up is what makes smoke rise.")]
+		[Tooltip("这个区域的雾被吹向的方向。朝上时烟就会往上升。")]
 		public Vector3 noiseWindDirection = new Vector3(0.15f, 1.0f, 0.0f);
-		[Tooltip("How fast the fog of this area is blown along its wind direction.")]
+		[Tooltip("这个区域的雾沿风向被吹动的速度。")]
 		[Min(0.0f)]
 		public float noiseWindSpeed = 0.35f;
 

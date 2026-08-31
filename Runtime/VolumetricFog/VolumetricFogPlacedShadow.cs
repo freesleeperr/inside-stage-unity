@@ -30,20 +30,20 @@ namespace FreeSleeperr.InsideStage
 
 	#region Public Attributes
 
-		[Tooltip("The shape that occludes the light. Spheres cast round shadows, while boxes cast shadows with straight edges.")]
+		[Tooltip("遮挡光线的形状。球体投出圆形阴影，盒体投出边缘笔直的阴影。")]
 		public ShadowShape shape = ShadowShape.Sphere;
-		[Tooltip("The size, in local units, of the shape. It is scaled by the transform scale, so shapes can be stretched into ellipsoids and slabs.")]
+		[Tooltip("形状的尺寸，单位为局部单位。会随 Transform 的缩放一起缩放，因此可以拉成椭球或扁板。")]
 		public Vector3 size = new Vector3(5.0f, 5.0f, 5.0f);
-		[Tooltip("How much light this shadow blocks. One blocks it completely, while lower values only tint the fog darker.")]
+		[Tooltip("这个阴影挡掉多少光。为 1 时完全挡住，数值更低时只是把雾压暗一些。")]
 		[Range(0.0f, 1.0f)]
 		public float intensity = 1.0f;
-		[Tooltip("The fraction of the shape, measured from its surface outwards, across which the shadow fades out. Zero leads to hard edges.")]
+		[Tooltip("从形状表面向外算起，阴影淡出所占的比例。为 0 时边缘生硬。")]
 		[Range(0.0f, 1.0f)]
 		public float softness = 0.35f;
-		[Tooltip("How much the shape is projected along the direction of the lights. One casts a shadow behind the shape, like a real occluder would, while zero just darkens the fog inside of the shape, like an ambient occlusion.")]
+		[Tooltip("形状沿光照方向被投射的程度。为 1 时会像真正的遮挡物那样在形状背后拖出阴影，为 0 时只是压暗形状内部的雾，类似环境光遮蔽。")]
 		[Range(0.0f, 1.0f)]
 		public float projection = 1.0f;
-		[Tooltip("How far, in world units, the projected shadow reaches before it fades out completely. Its penumbra also widens across that distance. Zero makes the shadow reach infinitely far.")]
+		[Tooltip("投射出的阴影在完全消失前能延伸多远，单位为世界单位。半影也会在这段距离内逐渐变宽。为 0 时阴影延伸到无限远。")]
 		[Min(0.0f)]
 		public float length = 25.0f;
 

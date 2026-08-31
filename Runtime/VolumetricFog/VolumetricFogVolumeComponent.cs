@@ -24,117 +24,117 @@ namespace FreeSleeperr.InsideStage
 	#region Public Attributes
 
 		[Header("Distances")]
-		[Tooltip("The maximum distance from the camera that the fog will be rendered up to.")]
+		[Tooltip("雾最远渲染到距相机多远的位置。")]
 		public ClampedFloatParameter distance = new ClampedFloatParameter(64.0f, 0.0f, 512.0f);
-		[Tooltip("The distance from the camera at which the fog starts to appear. Everything closer than it stays completely clear, which keeps the foreground readable and separates it from the background.")]
+		[Tooltip("距相机多远处雾才开始出现。比这更近的地方完全清澈，从而让前景保持清晰，并与背景拉开层次。")]
 		public MinFloatParameter startDistance = new MinFloatParameter(0.0f, 0.0f);
-		[Tooltip("The distance from the camera at which the fog reaches the density specified in the volume. Between the start distance and this one, the fog builds up gradually. Values equal or lower than the start distance make the fog reach its full density right away.")]
+		[Tooltip("距相机多远处雾达到 Volume 中设定的浓度。在起始距离与这个距离之间，雾会逐渐堆积。数值等于或小于起始距离时，雾立刻达到完整浓度。")]
 		public MinFloatParameter fullDensityDistance = new MinFloatParameter(0.0f, 0.0f);
-		[Tooltip("Shapes how the fog builds up between the start distance and the full density distance. Values lower than one make the fog build up quickly and then flatten out, while higher values keep the closest fog thinner and push most of the buildup towards the full density distance.")]
+		[Tooltip("控制雾在起始距离到满浓度距离之间如何堆积。小于 1 时雾很快变浓随后趋于平缓，大于 1 时近处的雾更稀薄，把大部分堆积推向满浓度距离处。")]
 		public ClampedFloatParameter distanceFalloff = new ClampedFloatParameter(1.0f, 0.1f, 8.0f);
-		[Tooltip("The world height at which the fog will have the density specified in the volume.")]
+		[Tooltip("在这个世界高度上，雾具有 Volume 中设定的浓度。")]
 		public FloatParameter baseHeight = new FloatParameter(0.0f, true);
-		[Tooltip("The world height at which the fog will have no density at all.")]
+		[Tooltip("在这个世界高度上，雾的浓度降为零。")]
 		public FloatParameter maximumHeight = new FloatParameter(50.0f, true);
-		[Tooltip("Shapes how the fog thins out between the base height and the maximum height. Values lower than one keep the fog dense for most of the range and then fade it out quickly, while higher values concentrate the fog near the base height, which reads as a low lying layer of mist.")]
+		[Tooltip("控制雾在基准高度到最大高度之间如何变稀。小于 1 时雾在大部分高度上都很浓，然后迅速消散；大于 1 时雾集中在基准高度附近，看起来像贴地的一层薄雾。")]
 		public ClampedFloatParameter heightFalloff = new ClampedFloatParameter(1.0f, 0.1f, 8.0f);
 
 		[Header("Ground")]
-		[Tooltip("When enabled, allows to define a world height. Below it, fog will have no density at all.")]
+		[Tooltip("启用后可以指定一个世界高度，低于它的地方雾的浓度为零。")]
 		public BoolParameter enableGround = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("Below this world height, fog will have no density at all.")]
+		[Tooltip("低于这个世界高度的地方，雾的浓度为零。")]
 		public FloatParameter groundHeight = new FloatParameter(0.0f);
 
 		[Header("Fog Areas")]
-		[Tooltip("How much fog there is outside of the volumetric fog areas placed in the scene, as a fraction of the density set below. Zero keeps the fog entirely inside of the areas, which is also what allows the raymarching steps to be gathered around them. Higher values leave a thinner layer of fog everywhere and turn the areas into denser pockets on top of it. It has no effect when there is no area in the scene.")]
+		[Tooltip("场景中体积雾区域之外还有多少雾，取值为下方浓度的比例。为 0 时雾完全被限制在各区域内部，光线步进的采样点也因此能集中到区域周围。数值更高时到处都会留下一层稀薄的雾，各区域则在这层雾之上成为更浓的团块。场景中没有任何区域时本项无效。")]
 		public ClampedFloatParameter areaGlobalDensity = new ClampedFloatParameter(0.0f, 0.0f, 1.0f);
 
 		[Header("Lighting")]
-		[Tooltip("How dense is the fog.")]
+		[Tooltip("雾有多浓。")]
 		public ClampedFloatParameter density = new ClampedFloatParameter(0.2f, 0.0f, 1.0f);
-		[Tooltip("Value that defines how much the fog attenuates light as distance increases. Lesser values lead to a darker image.")]
+		[Tooltip("随着距离增加，雾对光线的衰减程度。数值越小画面越暗。")]
 		public MinFloatParameter attenuationDistance = new MinFloatParameter(128.0f, 0.05f);
-		[Tooltip("When enabled, the fog scatters a constant amount of light that does not come from any light in particular, which is what keeps it readable where nothing directly lights it. Without it the fog goes pure black in the shade.")]
+		[Tooltip("启用后，雾会散射一份不来自任何具体灯光的恒定光照，让没有光直接照到的地方也依然可辨。不启用时，暗处的雾会变成纯黑。")]
 		public BoolParameter enableAmbientContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("The color of the light that reaches the fog from everywhere at once. Matching it to the ambient or the sky of the scene is what makes the fog sit in the image instead of floating on top of it.")]
+		[Tooltip("从四面八方同时照到雾上的光的颜色。让它与场景的环境光或天空一致，雾才会融进画面，而不是浮在画面之上。")]
 		public ColorParameter ambientColor = new ColorParameter(Color.white, true, false, true);
-		[Tooltip("How much ambient light the fog scatters. It is the parameter that lifts the fog out of pure black, so small values already go a long way.")]
+		[Tooltip("雾散射多少环境光。正是这个参数把雾从纯黑里提起来，所以很小的数值就已经很明显。")]
 		public MinFloatParameter ambientIntensity = new MinFloatParameter(0.1f, 0.0f);
 #if UNITY_2023_1_OR_NEWER
-		[Tooltip("When enabled, adaptive probe volumes (APV) will be sampled to contribute to fog.")]
+		[Tooltip("启用后会采样自适应探针体积（APV），让它参与雾的照明。")]
 		public BoolParameter enableAPVContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("A weight factor for the light coming from adaptive probe volumes (APV) when the probe volume contribution is enabled.")]
+		[Tooltip("启用探针体积贡献后，来自自适应探针体积（APV）的光照所占的权重。")]
 		public ClampedFloatParameter APVContributionWeight = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
 #endif
 
 		[Header("Noise (Clouds)")]
-		[Tooltip("When enabled, the fog density is modulated with animated 3D noise, which gives it a cloudy, volumetric look.")]
+		[Tooltip("启用后，雾的浓度会被动态的三维噪声调制，呈现云团般的体积感。")]
 		public BoolParameter enableNoise = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("How much the noise modulates the fog density. At zero the fog is completely uniform, while at one it is fully driven by the noise.")]
+		[Tooltip("噪声对雾浓度的调制程度。为 0 时雾完全均匀，为 1 时完全由噪声决定。")]
 		public ClampedFloatParameter noiseIntensity = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
-		[Tooltip("How much of the volume is covered by the clouds of fog. Lower values leave bigger gaps of clear air between them.")]
+		[Tooltip("云状雾覆盖了多大范围。数值越低，云团之间留出的清澈空隙越大。")]
 		public ClampedFloatParameter noiseCoverage = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
-		[Tooltip("The world size, in meters, of one tile of the noise that defines the overall shape of the clouds of fog.")]
+		[Tooltip("决定云状雾整体形状的那层噪声，其一个平铺单元的世界尺寸，单位为米。")]
 		public MinFloatParameter noiseTileSize = new MinFloatParameter(48.0f, 0.01f);
-		[Tooltip("When enabled, a third and much lower frequency noise varies the coverage across the world, which gathers the fog into banks separated by clearings instead of spreading it evenly. It is what gives the fog its sense of depth when looking into the distance.")]
+		[Tooltip("启用后，第三层频率低得多的噪声会在世界范围内改变覆盖度，把雾聚成一片片雾墙、中间留出空隙，而不是均匀铺开。正是它让远望时的雾有了纵深感。")]
 		public BoolParameter enableNoiseMacro = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("The world size, in meters, of one tile of the noise that gathers the fog into banks. It should be several times bigger than the shape tile size, otherwise the banks are too small to be noticed as such.")]
+		[Tooltip("把雾聚成雾墙的那层噪声，其一个平铺单元的世界尺寸，单位为米。它应当比形状平铺尺寸大上几倍，否则雾墙太小、看不出成片的效果。")]
 		public MinFloatParameter noiseMacroTileSize = new MinFloatParameter(240.0f, 0.01f);
-		[Tooltip("How much the banks of fog vary the coverage. At zero the coverage is uniform, while at one it goes from completely clear in the middle of the clearings to twice the coverage in the middle of the banks.")]
+		[Tooltip("雾墙对覆盖度的改变幅度。为 0 时覆盖度均匀，为 1 时从空隙中央的完全清澈变化到雾墙中央的两倍覆盖度。")]
 		public ClampedFloatParameter noiseMacroIntensity = new ClampedFloatParameter(0.75f, 0.0f, 1.0f);
-		[Tooltip("When enabled, a second and higher frequency noise erodes the edges of the clouds of fog, adding wispy details at the cost of some performance.")]
+		[Tooltip("启用后，第二层更高频的噪声会侵蚀云状雾的边缘，以一定性能为代价增添缕状细节。")]
 		public BoolParameter enableNoiseDetail = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("The world size, in meters, of one tile of the noise that erodes the edges of the clouds of fog.")]
+		[Tooltip("侵蚀云状雾边缘的那层噪声，其一个平铺单元的世界尺寸，单位为米。")]
 		public MinFloatParameter noiseDetailTileSize = new MinFloatParameter(8.0f, 0.01f);
-		[Tooltip("How much the detail noise erodes the edges of the clouds of fog.")]
+		[Tooltip("细节噪声对云状雾边缘的侵蚀程度。")]
 		public ClampedFloatParameter noiseDetailIntensity = new ClampedFloatParameter(0.35f, 0.0f, 1.0f);
-		[Tooltip("The direction towards which the clouds of fog are blown. It does not need to be normalized.")]
+		[Tooltip("云状雾被吹向的方向，不需要归一化。")]
 		public Vector3Parameter windDirection = new Vector3Parameter(new Vector3(1.0f, 0.0f, 0.25f));
-		[Tooltip("How fast, in meters per second, the clouds of fog are blown by the wind.")]
+		[Tooltip("云状雾被风吹动的速度，单位为米每秒。")]
 		public MinFloatParameter windSpeed = new MinFloatParameter(1.5f, 0.0f);
-		[Tooltip("The distance from the camera at which the noise starts fading back into uniform fog, which hides the aliasing caused by the raymarching steps becoming too long to resolve it. Zero disables the fade.")]
+		[Tooltip("距相机多远处噪声开始淡回均匀的雾，用来掩盖光线步进步长过长、无法解析噪声而产生的锯齿。为 0 时不做这种淡出。")]
 		public MinFloatParameter noiseFadeDistance = new MinFloatParameter(0.0f, 0.0f);
-		[Tooltip("Darkens the light scattered by the thinnest parts of the fog, which makes the clouds of fog look fluffier and gives them more contrast.")]
+		[Tooltip("压暗雾最稀薄处所散射的光，让云状雾看起来更蓬松、对比更强。")]
 		public ClampedFloatParameter powderIntensity = new ClampedFloatParameter(0.0f, 0.0f, 1.0f);
 
 		[Header("Main Light")]
-		[Tooltip("Disabling this will avoid computing the main light contribution to fog, which in most cases will lead to better performance.")]
+		[Tooltip("关闭后将不再计算主光源对雾的贡献，多数情况下能提升性能。")]
 		public BoolParameter enableMainLightContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("Higher positive values will make the fog affected by the main light to appear brighter when directly looking to it, while lower negative values will make the fog to appear brighter when looking away from it. The closer the value is closer to 1 or -1, the less the brightness will spread. Most times, positive values higher than 0 and lower than 1 should be used.")]
+		[Tooltip("控制主光源照亮的雾往哪个方向散射。正值越大，正对着光看时雾越亮；负值越小，背对着光看时雾越亮。越接近 1 或 -1，亮部越集中、扩散得越少。多数情况下使用 0 到 1 之间的正值。")]
 		public ClampedFloatParameter anisotropy = new ClampedFloatParameter(0.4f, -1.0f, 1.0f);
-		[Tooltip("Higher values will make fog affected by the main light to appear brighter.")]
+		[Tooltip("主光源照亮的雾有多亮，数值越大越亮。")]
 		public ClampedFloatParameter scattering = new ClampedFloatParameter(0.15f, 0.0f, 1.0f);
-		[Tooltip("A multiplier color to tint the main light fog.")]
+		[Tooltip("为主光源照亮的雾染色的颜色倍率。")]
 		public ColorParameter tint = new ColorParameter(Color.white, true, false, true);
-		[Tooltip("When enabled, the fog casts shadows onto itself by marching a short ray towards the main light at every raymarching step. It is what gives the clouds of fog bright edges and dark cores instead of lighting them up uniformly, at a noticeable cost.")]
+		[Tooltip("启用后，雾会在每个光线步进点朝主光源再走一小段，从而对自身投影。正是它让云状雾有了明亮的边缘和暗沉的内核，而不是被均匀照亮，代价是明显的性能开销。")]
 		public BoolParameter enableSelfShadowing = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("How much the fog darkens itself. Higher values make the parts of the fog that are hidden behind other fog darker. It is kept apart from the attenuation distance, so that the shadowing can be dialed in without changing how dark the whole image gets.")]
+		[Tooltip("雾对自身的压暗程度。数值越大，被其他雾挡住的部分越暗。它与衰减距离分开设置，这样调整自阴影时不会改变整幅画面的明暗。")]
 		public ClampedFloatParameter selfShadowingIntensity = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
-		[Tooltip("The distance, in meters, that is marched towards the main light to gather the fog that shadows every raymarching step. Bigger values catch whole clouds of fog and give broad shadows, while smaller ones concentrate the shadowing on the nearby details.")]
+		[Tooltip("为每个光线步进点朝主光源走多远来收集遮挡它的雾，单位为米。数值越大越能囊括整团雾、投出大片阴影；数值越小，自阴影越集中在附近的细节上。")]
 		public MinFloatParameter selfShadowingDistance = new MinFloatParameter(16.0f, 0.01f);
 
 		[Header("Additional Lights")]
-		[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]
+		[Tooltip("关闭后将不再计算额外光源对雾的贡献，多数情况下能提升性能。")]
 		public BoolParameter enableAdditionalLightsContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("When enabled, the fog casts shadows onto itself for the point and spot lights as well, and not only for the main light. It is what shapes the smoke of a scene lit by lamps instead of by a sun: without it every lamp lights its pocket of fog right through and the smoke reads as a flat blob. Every light that reaches the fog marches a short ray of its own, so it costs more the more lights overlap.")]
+		[Tooltip("启用后，点光源和聚光灯也会让雾对自身投影，而不只是主光源。对于靠灯具而非太阳照明的场景，正是它塑造出烟的形体：不启用时每盏灯都会把它那团雾照透，烟看起来就是一块扁平的糊斑。每一盏照到雾的灯都会各自走一小段射线，因此灯光重叠得越多开销越大。")]
 		public BoolParameter enableAdditionalLightsSelfShadowing = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-		[Tooltip("How much the fog darkens itself for the additional lights. Higher values make the fog that hides behind other fog, as seen from the lamp, darker.")]
+		[Tooltip("针对额外光源，雾对自身的压暗程度。数值越大，从灯的方向看被其他雾挡住的雾就越暗。")]
 		public ClampedFloatParameter additionalLightsSelfShadowingIntensity = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
-		[Tooltip("The distance, in meters, that is marched towards each additional light to gather the fog that shadows every raymarching step. Lamps light the fog around them rather than the whole world, so this is usually a lot shorter than the main light one. The march never goes past the light itself.")]
+		[Tooltip("为每个光线步进点朝各个额外光源走多远来收集遮挡它的雾，单位为米。灯具只照亮周围的雾而非整个世界，因此这个距离通常比主光源的短得多。步进不会越过灯本身。")]
 		public MinFloatParameter additionalLightsSelfShadowingDistance = new MinFloatParameter(6.0f, 0.01f);
 
 		[Header("Performance & Quality")]
-		[Tooltip("The resolution the fog is rendered at, before it is blurred and composited back onto the image. Quarter costs a fourth of what half does, which is the single biggest saving there is, and the fog pays for it with softer edges where it meets the geometry in front of it. Fog that is mostly a haze holds up at quarter; fog carved by tight noise or by narrow light shafts shows the loss.")]
+		[Tooltip("雾在被模糊并合成回画面之前所使用的渲染分辨率。四分之一分辨率的开销是二分之一的四分之一，是最省的一档，代价是雾与前方几何体交界处的边缘更软。以薄雾为主的效果在四分之一下依然成立；由细密噪声或狭窄光束雕刻出的雾则会看出损失。")]
 		public VolumetricFogResolutionParameter resolution = new VolumetricFogResolutionParameter(VolumetricFogResolution.Half);
-		[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
+		[Tooltip("光线步进的步数。数值越大雾的质量越高，代价是性能。")]
 		public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);
-		[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance.")]
+		[Tooltip("雾纹理被模糊的次数。数值越大，体积光（丁达尔光束）越柔和，代价是一定的性能。")]
 		public ClampedIntParameter blurIterations = new ClampedIntParameter(2, 1, 4);
-		[Tooltip("Disabling this will completely remove any feature from the volumetric fog from being rendered at all.")]
+		[Tooltip("关闭后体积雾的所有功能都不会被渲染。")]
 		public BoolParameter enabled = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 
 		[Header("Render Pass Event")]
-		[Tooltip("The URP render pass event to render the volumetric fog.")]
+		[Tooltip("渲染体积雾所使用的 URP 渲染通道事件。")]
 		public VolumetricFogRenderPassEventParameter renderPassEvent = new VolumetricFogRenderPassEventParameter(VolumetricFogRenderPass.DefaultVolumetricFogRenderPassEvent);
 
 	#endregion

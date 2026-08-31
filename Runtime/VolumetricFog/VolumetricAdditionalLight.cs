@@ -13,13 +13,13 @@ namespace FreeSleeperr.InsideStage
 	{
 	#region Private Attributes
 
-		[Tooltip("Higher positive values will make the fog affected by this light to appear brighter when directly looking to it, while lower negative values will make the fog to appear brighter when looking away from it. The closer the value is closer to 1 or -1, the less the brightness will spread. Most times, positive values higher than 0 and lower than 1 should be used.")]
+		[Tooltip("控制这盏灯照亮的雾往哪个方向散射。正值越大，正对着灯看时雾越亮；负值越小，背对着灯看时雾越亮。越接近 1 或 -1，亮部越集中、扩散得越少。多数情况下使用 0 到 1 之间的正值。")]
 		[Range(-1.0f, 1.0f)]
 		[SerializeField] private float anisotropy = 0.25f;
-		[Tooltip("Higher values will make fog affected by this light to appear brighter.")]
+		[Tooltip("这盏灯照亮的雾有多亮，数值越大越亮。")]
 		[Range(0.0f, 16.0f)]
 		[SerializeField] private float scattering = 1.0f;
-		[Tooltip("Sets a falloff radius for this light. A higher value reduces noise towards the origin of the light.")]
+		[Tooltip("这盏灯的衰减半径。数值越大，靠近灯源处的噪点越少。")]
 		[Range(0.0f, 1.0f)]
 		[SerializeField] private float radius = 0.2f;
 

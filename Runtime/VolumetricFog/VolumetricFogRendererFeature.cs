@@ -7,7 +7,7 @@ namespace FreeSleeperr.InsideStage
 	/// <summary>
 	/// The volumetric fog renderer feature.
 	/// </summary>
-	[Tooltip("Adds support to render volumetric fog.")]
+	[Tooltip("添加体积雾的渲染支持。")]
 	[DisallowMultipleRendererFeature("Volumetric Fog")]
 	public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	{

@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57cfcdaa9ebb6014c8e453c8a40c94e4, type: 3}
   m_Name: InsideDither
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
-    ditherIntensity: 1
-    grainIntensity: 0.03
+    ditherIntensity: 3.39
+    grainIntensity: 0.078
     grainShadowBias: 0.8
     grainResponse: 3.5
     animateGrain: 1
