@@ -96,14 +96,20 @@ float GetFogNoiseDensityMultiplier(float3 posWS, float dist, bool includeDetail,
     float noise;
     float intensity;
 
-    float4 areaNoiseParams = areaIndex >= 0 ? _FogAreasNoiseParams[areaIndex] : float4(0.0, 0.0, 0.0, 0.0);
+    // The index has to be clamped apart from the tests that guard it. With no fog area in the scene the areas are
+    // compiled out and the index that reaches here is a compile time constant of minus one, and the shader compiler
+    // resolves the indexing before it resolves the branch that would have kept it from ever happening, so it rejects
+    // the whole program over an access that the running shader never makes.
+    int safeAreaIndex = max(areaIndex, 0);
+
+    float4 areaNoiseParams = areaIndex >= 0 ? _FogAreasNoiseParams[safeAreaIndex] : float4(0.0, 0.0, 0.0, 0.0);
 
     UNITY_BRANCH
     if (areaNoiseParams.x > 0.0)
     {
-        float4 areaDetailOffset = _FogAreasNoiseDetailOffset[areaIndex];
+        float4 areaDetailOffset = _FogAreasNoiseDetailOffset[safeAreaIndex];
 
-        noise = EvaluateFogNoise(posWS, areaNoiseParams.x, _FogAreasNoiseShapeOffset[areaIndex].xyz, areaNoiseParams.w,
+        noise = EvaluateFogNoise(posWS, areaNoiseParams.x, _FogAreasNoiseShapeOffset[safeAreaIndex].xyz, areaNoiseParams.w,
                                  false, includeDetail, areaNoiseParams.y, areaDetailOffset.xyz, areaDetailOffset.w);
         intensity = areaNoiseParams.z;
     }

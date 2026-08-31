@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.13.1] - 2026-08-31
+
+- Fixed the volumetric fog failing to compile, and so rendering nothing, in any project with no `VolumetricFogArea` in its scene. The noise picks the parameters of the area that holds the position out of an array, guarded by a test against the index being negative, and with the areas compiled out that index is a compile time constant of minus one. The shader compiler resolves the indexing before the branch that would have kept it from ever happening, so it rejected the whole program with `array index out of bounds` over an access the running shader never makes. The index is now clamped apart from the test. The bug has been there since the fog areas shipped, and it only ever showed in projects that had no area at all, which is why the sample never hit it.
+
 ## [0.13.0] - 2026-08-31
 
 - New `Blend Mode` on `VolumetricFogArea`. Overlapping areas kept the densest of them and nothing else, which is right for two banks of haze sliding across each other and wrong for everything stacked: a puff of smoke placed inside a lit pocket of haze did not thicken it, it replaced it, and since the winning area also handed the position its tint and its noise, the noise field switched from one to the other across the surface where the two densities crossed. That surface read as a border the smoke and the light shaft were pushing each other along. `Additive` piles the fog of an area, carved by its own noise, on top of what the others left, and the tint of the result is now every contributing area weighted by how much of the fog it put there, so a puff bleeds its color into the haze instead of switching across its edge. The default is `Max`, which behaves exactly as before, and an area left on it costs exactly what it did.
