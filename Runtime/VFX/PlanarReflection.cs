@@ -63,6 +63,10 @@ namespace FreeSleeperr.InsideStage
 		private Camera reflectionCamera;
 		private Renderer[] resolvedRenderers;
 
+		// The layers the surfaces showing the reflection live on. A camera that does not draw any of them has nowhere to
+		// show a reflection, so it is not made to render one.
+		private int targetLayerMask;
+
 		#endregion
 
 		#region MonoBehaviour Methods
@@ -113,13 +117,17 @@ namespace FreeSleeperr.InsideStage
 		public void ResolveTargetRenderers()
 		{
 			if (targetRenderers != null && targetRenderers.Count > 0)
-			{
 				resolvedRenderers = targetRenderers.ToArray();
+			else
+				resolvedRenderers = GetComponentsInChildren<Renderer>(true);
 
-				return;
+			targetLayerMask = 0;
+
+			for (int i = 0; i < resolvedRenderers.Length; ++i)
+			{
+				if (resolvedRenderers[i] != null)
+					targetLayerMask |= 1 << resolvedRenderers[i].gameObject.layer;
 			}
-
-			resolvedRenderers = GetComponentsInChildren<Renderer>(true);
 		}
 
 		/// <summary>
@@ -170,10 +178,21 @@ namespace FreeSleeperr.InsideStage
 		/// <returns></returns>
 		private bool IsReflectedCamera(Camera camera)
 		{
-			if (camera.cameraType == CameraType.Game)
-				return true;
+			if (camera.cameraType != CameraType.Game && !(renderInSceneView && camera.cameraType == CameraType.SceneView))
+				return false;
 
-			return renderInSceneView && camera.cameraType == CameraType.SceneView;
+			// A camera that does not draw the reflective surfaces has nothing to show the reflection on. Rendering one for
+			// it is wasted at best, and at worst impossible: an orthographic camera cannot be given the oblique near plane
+			// the reflection clips against, which leaves its frustum degenerate and fills the console with "Screen position
+			// out of view frustum".
+			if ((camera.cullingMask & targetLayerMask) == 0)
+				return false;
+
+			// An overlay camera is drawn as part of the stack of the base camera it belongs to, and cannot be rendered on
+			// its own the way the reflection is.
+			UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+
+			return cameraData == null || cameraData.renderType == CameraRenderType.Base;
 		}
 
 		/// <summary>
@@ -364,7 +383,11 @@ namespace FreeSleeperr.InsideStage
 			// Clipping against the plane itself keeps whatever is under the floor from showing up in its reflection.
 			Vector4 clipPlane = GetCameraSpacePlane(reflectionCamera, planePosition, planeNormal);
 			reflectionCamera.projectionMatrix = camera.CalculateObliqueMatrix(clipPlane);
-			reflectionCamera.cullingMatrix = reflectionCamera.projectionMatrix * reflectionCamera.worldToCameraMatrix;
+			// Culling is done against the unskewed frustum. The oblique near plane pushes the far corners of the
+			// projection behind the eye, which is what fills the console with "Screen position out of view frustum"
+			// while the culling parameters are being worked out, and culling against the wider frustum only keeps
+			// geometry that the oblique plane then clips away anyway.
+			reflectionCamera.cullingMatrix = camera.projectionMatrix * reflectionCamera.worldToCameraMatrix;
 
 			// The mirrored camera sits below the floor, and its transform is only kept in sync for whatever reads it.
 			reflectionCamera.transform.position = reflectionMatrix.MultiplyPoint(camera.transform.position);

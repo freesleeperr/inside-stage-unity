@@ -1,5 +1,6 @@
 ﻿using UnityEditor;
 using UnityEditor.Rendering;
+using UnityEngine;
 
 namespace FreeSleeperr.InsideStage.Editor
 {
@@ -9,8 +10,21 @@ namespace FreeSleeperr.InsideStage.Editor
 	[CustomEditor(typeof(VolumetricFogVolumeComponent))]
 	public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	{
+	#region Definitions
+
+		/// <summary>
+		/// Prefix of the editor prefs keys that keep each foldout group expanded or collapsed between sessions.
+		/// </summary>
+		private const string FoldoutKeyPrefix = "FreeSleeperr.InsideStage.VolumetricFog.Foldout.";
+
+	#endregion
+
 	#region Private Attributes
 
+		private SerializedDataParameter enabled;
+
+		private SerializedDataParameter density;
+		private SerializedDataParameter areaGlobalDensity;
 		private SerializedDataParameter distance;
 		private SerializedDataParameter startDistance;
 		private SerializedDataParameter fullDensityDistance;
@@ -18,13 +32,24 @@ namespace FreeSleeperr.InsideStage.Editor
 		private SerializedDataParameter baseHeight;
 		private SerializedDataParameter maximumHeight;
 		private SerializedDataParameter heightFalloff;
-
 		private SerializedDataParameter enableGround;
 		private SerializedDataParameter groundHeight;
 
-		private SerializedDataParameter areaGlobalDensity;
+		private SerializedDataParameter enableNoise;
+		private SerializedDataParameter noiseIntensity;
+		private SerializedDataParameter noiseCoverage;
+		private SerializedDataParameter noiseTileSize;
+		private SerializedDataParameter windDirection;
+		private SerializedDataParameter windSpeed;
+		private SerializedDataParameter noiseFadeDistance;
+		private SerializedDataParameter powderIntensity;
+		private SerializedDataParameter enableNoiseMacro;
+		private SerializedDataParameter noiseMacroTileSize;
+		private SerializedDataParameter noiseMacroIntensity;
+		private SerializedDataParameter enableNoiseDetail;
+		private SerializedDataParameter noiseDetailTileSize;
+		private SerializedDataParameter noiseDetailIntensity;
 
-		private SerializedDataParameter density;
 		private SerializedDataParameter attenuationDistance;
 		private SerializedDataParameter enableAmbientContribution;
 		private SerializedDataParameter ambientColor;
@@ -33,21 +58,6 @@ namespace FreeSleeperr.InsideStage.Editor
 		private SerializedDataParameter enableAPVContribution;
 		private SerializedDataParameter APVContributionWeight;
 #endif
-
-		private SerializedDataParameter enableNoise;
-		private SerializedDataParameter noiseIntensity;
-		private SerializedDataParameter noiseCoverage;
-		private SerializedDataParameter noiseTileSize;
-		private SerializedDataParameter enableNoiseMacro;
-		private SerializedDataParameter noiseMacroTileSize;
-		private SerializedDataParameter noiseMacroIntensity;
-		private SerializedDataParameter enableNoiseDetail;
-		private SerializedDataParameter noiseDetailTileSize;
-		private SerializedDataParameter noiseDetailIntensity;
-		private SerializedDataParameter windDirection;
-		private SerializedDataParameter windSpeed;
-		private SerializedDataParameter noiseFadeDistance;
-		private SerializedDataParameter powderIntensity;
 
 		private SerializedDataParameter enableMainLightContribution;
 		private SerializedDataParameter anisotropy;
@@ -65,8 +75,6 @@ namespace FreeSleeperr.InsideStage.Editor
 		private SerializedDataParameter resolution;
 		private SerializedDataParameter maxSteps;
 		private SerializedDataParameter blurIterations;
-		private SerializedDataParameter enabled;
-
 		private SerializedDataParameter renderPassEvent;
 
 	#endregion
@@ -80,6 +88,10 @@ namespace FreeSleeperr.InsideStage.Editor
 		{
 			PropertyFetcher<VolumetricFogVolumeComponent> pf = new PropertyFetcher<VolumetricFogVolumeComponent>(serializedObject);
 
+			enabled = Unpack(pf.Find(x => x.enabled));
+
+			density = Unpack(pf.Find(x => x.density));
+			areaGlobalDensity = Unpack(pf.Find(x => x.areaGlobalDensity));
 			distance = Unpack(pf.Find(x => x.distance));
 			startDistance = Unpack(pf.Find(x => x.startDistance));
 			fullDensityDistance = Unpack(pf.Find(x => x.fullDensityDistance));
@@ -87,13 +99,24 @@ namespace FreeSleeperr.InsideStage.Editor
 			baseHeight = Unpack(pf.Find(x => x.baseHeight));
 			maximumHeight = Unpack(pf.Find(x => x.maximumHeight));
 			heightFalloff = Unpack(pf.Find(x => x.heightFalloff));
-
 			enableGround = Unpack(pf.Find(x => x.enableGround));
 			groundHeight = Unpack(pf.Find(x => x.groundHeight));
 
-			areaGlobalDensity = Unpack(pf.Find(x => x.areaGlobalDensity));
+			enableNoise = Unpack(pf.Find(x => x.enableNoise));
+			noiseIntensity = Unpack(pf.Find(x => x.noiseIntensity));
+			noiseCoverage = Unpack(pf.Find(x => x.noiseCoverage));
+			noiseTileSize = Unpack(pf.Find(x => x.noiseTileSize));
+			windDirection = Unpack(pf.Find(x => x.windDirection));
+			windSpeed = Unpack(pf.Find(x => x.windSpeed));
+			noiseFadeDistance = Unpack(pf.Find(x => x.noiseFadeDistance));
+			powderIntensity = Unpack(pf.Find(x => x.powderIntensity));
+			enableNoiseMacro = Unpack(pf.Find(x => x.enableNoiseMacro));
+			noiseMacroTileSize = Unpack(pf.Find(x => x.noiseMacroTileSize));
+			noiseMacroIntensity = Unpack(pf.Find(x => x.noiseMacroIntensity));
+			enableNoiseDetail = Unpack(pf.Find(x => x.enableNoiseDetail));
+			noiseDetailTileSize = Unpack(pf.Find(x => x.noiseDetailTileSize));
+			noiseDetailIntensity = Unpack(pf.Find(x => x.noiseDetailIntensity));
 
-			density = Unpack(pf.Find(x => x.density));
 			attenuationDistance = Unpack(pf.Find(x => x.attenuationDistance));
 			enableAmbientContribution = Unpack(pf.Find(x => x.enableAmbientContribution));
 			ambientColor = Unpack(pf.Find(x => x.ambientColor));
@@ -102,21 +125,6 @@ namespace FreeSleeperr.InsideStage.Editor
 			enableAPVContribution = Unpack(pf.Find(x => x.enableAPVContribution));
 			APVContributionWeight = Unpack(pf.Find(x => x.APVContributionWeight));
 #endif
-
-			enableNoise = Unpack(pf.Find(x => x.enableNoise));
-			noiseIntensity = Unpack(pf.Find(x => x.noiseIntensity));
-			noiseCoverage = Unpack(pf.Find(x => x.noiseCoverage));
-			noiseTileSize = Unpack(pf.Find(x => x.noiseTileSize));
-			enableNoiseMacro = Unpack(pf.Find(x => x.enableNoiseMacro));
-			noiseMacroTileSize = Unpack(pf.Find(x => x.noiseMacroTileSize));
-			noiseMacroIntensity = Unpack(pf.Find(x => x.noiseMacroIntensity));
-			enableNoiseDetail = Unpack(pf.Find(x => x.enableNoiseDetail));
-			noiseDetailTileSize = Unpack(pf.Find(x => x.noiseDetailTileSize));
-			noiseDetailIntensity = Unpack(pf.Find(x => x.noiseDetailIntensity));
-			windDirection = Unpack(pf.Find(x => x.windDirection));
-			windSpeed = Unpack(pf.Find(x => x.windSpeed));
-			noiseFadeDistance = Unpack(pf.Find(x => x.noiseFadeDistance));
-			powderIntensity = Unpack(pf.Find(x => x.powderIntensity));
 
 			enableMainLightContribution = Unpack(pf.Find(x => x.enableMainLightContribution));
 			anisotropy = Unpack(pf.Find(x => x.anisotropy));
@@ -134,8 +142,6 @@ namespace FreeSleeperr.InsideStage.Editor
 			resolution = Unpack(pf.Find(x => x.resolution));
 			maxSteps = Unpack(pf.Find(x => x.maxSteps));
 			blurIterations = Unpack(pf.Find(x => x.blurIterations));
-			enabled = Unpack(pf.Find(x => x.enabled));
-	
 			renderPassEvent = Unpack(pf.Find(x => x.renderPassEvent));
 		}
 
@@ -144,110 +150,235 @@ namespace FreeSleeperr.InsideStage.Editor
 		/// </summary>
 		public override void OnInspectorGUI()
 		{
-			bool isEnabled = enabled.overrideState.boolValue && enabled.value.boolValue;
-
-			if (!isEnabled)
-			{
-				PropertyField(enabled);
-				return;
-			}
-
-			bool enabledGround = enableGround.overrideState.boolValue && enableGround.value.boolValue;
-			bool enabledNoise = enableNoise.overrideState.boolValue && enableNoise.value.boolValue;
-			bool enabledNoiseMacro = enableNoiseMacro.overrideState.boolValue && enableNoiseMacro.value.boolValue;
-			bool enabledNoiseDetail = enableNoiseDetail.overrideState.boolValue && enableNoiseDetail.value.boolValue;
-			bool enabledMainLightContribution = enableMainLightContribution.overrideState.boolValue && enableMainLightContribution.value.boolValue;
-			bool enabledAdditionalLightsContribution = enableAdditionalLightsContribution.overrideState.boolValue && enableAdditionalLightsContribution.value.boolValue;
-
-			PropertyField(distance);
-			PropertyField(startDistance);
-			PropertyField(fullDensityDistance);
-			PropertyField(distanceFalloff);
-			PropertyField(baseHeight);
-			PropertyField(maximumHeight);
-			PropertyField(heightFalloff);
-
-			PropertyField(enableGround);
-			if (enabledGround)
-				PropertyField(groundHeight);
-
-			PropertyField(areaGlobalDensity);
-
-			PropertyField(density);
-			PropertyField(attenuationDistance);
-
-			PropertyField(enableAmbientContribution);
-			if (enableAmbientContribution.overrideState.boolValue && enableAmbientContribution.value.boolValue)
-			{
-				PropertyField(ambientColor);
-				PropertyField(ambientIntensity);
-			}
-#if UNITY_2023_1_OR_NEWER
-			bool enabledAPVContribution = enableAPVContribution.overrideState.boolValue && enableAPVContribution.value.boolValue;
-			PropertyField(enableAPVContribution);
-			if (enabledAPVContribution)
-				PropertyField(APVContributionWeight);
-#endif
-
-			PropertyField(enableNoise);
-			if (enabledNoise)
-			{
-				PropertyField(noiseIntensity);
-				PropertyField(noiseCoverage);
-				PropertyField(noiseTileSize);
-
-				PropertyField(enableNoiseMacro);
-				if (enabledNoiseMacro)
-				{
-					PropertyField(noiseMacroTileSize);
-					PropertyField(noiseMacroIntensity);
-				}
-
-				PropertyField(enableNoiseDetail);
-				if (enabledNoiseDetail)
-				{
-					PropertyField(noiseDetailTileSize);
-					PropertyField(noiseDetailIntensity);
-				}
-
-				PropertyField(windDirection);
-				PropertyField(windSpeed);
-				PropertyField(noiseFadeDistance);
-				PropertyField(powderIntensity);
-			}
-
-			PropertyField(enableMainLightContribution);
-			if (enabledMainLightContribution)
-			{
-				PropertyField(anisotropy);
-				PropertyField(scattering);
-				PropertyField(tint);
-
-				PropertyField(enableSelfShadowing);
-				if (enableSelfShadowing.overrideState.boolValue && enableSelfShadowing.value.boolValue)
-				{
-					PropertyField(selfShadowingIntensity);
-					PropertyField(selfShadowingDistance);
-				}
-			}
-
-			PropertyField(enableAdditionalLightsContribution);
-			if (enabledAdditionalLightsContribution)
-			{
-				PropertyField(enableAdditionalLightsSelfShadowing);
-				if (enableAdditionalLightsSelfShadowing.overrideState.boolValue && enableAdditionalLightsSelfShadowing.value.boolValue)
-				{
-					PropertyField(additionalLightsSelfShadowingIntensity);
-					PropertyField(additionalLightsSelfShadowingDistance);
-				}
-			}
-
-			PropertyField(resolution);
-			PropertyField(maxSteps);
-			PropertyField(blurIterations);
 			PropertyField(enabled);
-	
-			PropertyField(renderPassEvent);
+
+			if (!IsOn(enabled))
+				return;
+
+			DrawShapeGroup();
+			DrawNoiseGroup();
+			DrawLightingGroup();
+			DrawMainLightGroup();
+			DrawAdditionalLightsGroup();
+			DrawPerformanceGroup();
+		}
+
+	#endregion
+
+	#region Group Methods
+
+		/// <summary>
+		/// Draws the parameters that shape where the fog is and how thick it gets.
+		/// </summary>
+		private void DrawShapeGroup()
+		{
+			if (BeginGroup("Shape", "Shape"))
+			{
+				PropertyField(density);
+				PropertyField(areaGlobalDensity);
+
+				DrawSubHeader("Distance");
+				PropertyField(distance);
+				PropertyField(startDistance);
+				PropertyField(fullDensityDistance);
+				PropertyField(distanceFalloff);
+
+				DrawSubHeader("Height");
+				PropertyField(baseHeight);
+				PropertyField(maximumHeight);
+				PropertyField(heightFalloff);
+				PropertyField(enableGround);
+				if (IsOn(enableGround))
+					PropertyField(groundHeight);
+			}
+
+			EndGroup();
+		}
+
+		/// <summary>
+		/// Draws the parameters of the noise that turns the fog into clouds.
+		/// </summary>
+		private void DrawNoiseGroup()
+		{
+			if (BeginGroup("Noise", "Noise (Clouds)"))
+			{
+				PropertyField(enableNoise);
+
+				if (IsOn(enableNoise))
+				{
+					PropertyField(noiseIntensity);
+					PropertyField(noiseCoverage);
+					PropertyField(noiseTileSize);
+					PropertyField(windDirection);
+					PropertyField(windSpeed);
+					PropertyField(noiseFadeDistance);
+					PropertyField(powderIntensity);
+
+					DrawSubHeader("Macro");
+					PropertyField(enableNoiseMacro);
+					if (IsOn(enableNoiseMacro))
+					{
+						PropertyField(noiseMacroTileSize);
+						PropertyField(noiseMacroIntensity);
+					}
+
+					DrawSubHeader("Detail");
+					PropertyField(enableNoiseDetail);
+					if (IsOn(enableNoiseDetail))
+					{
+						PropertyField(noiseDetailTileSize);
+						PropertyField(noiseDetailIntensity);
+					}
+				}
+			}
+
+			EndGroup();
+		}
+
+		/// <summary>
+		/// Draws the parameters of the lighting that does not come from any particular light.
+		/// </summary>
+		private void DrawLightingGroup()
+		{
+			if (BeginGroup("Lighting", "Lighting"))
+			{
+				PropertyField(attenuationDistance);
+
+				PropertyField(enableAmbientContribution);
+				if (IsOn(enableAmbientContribution))
+				{
+					PropertyField(ambientColor);
+					PropertyField(ambientIntensity);
+				}
+
+#if UNITY_2023_1_OR_NEWER
+				PropertyField(enableAPVContribution);
+				if (IsOn(enableAPVContribution))
+					PropertyField(APVContributionWeight);
+#endif
+			}
+
+			EndGroup();
+		}
+
+		/// <summary>
+		/// Draws the parameters of the main light contribution.
+		/// </summary>
+		private void DrawMainLightGroup()
+		{
+			if (BeginGroup("MainLight", "Main Light"))
+			{
+				PropertyField(enableMainLightContribution);
+
+				if (IsOn(enableMainLightContribution))
+				{
+					PropertyField(anisotropy);
+					PropertyField(scattering);
+					PropertyField(tint);
+
+					DrawSubHeader("Self Shadowing");
+					PropertyField(enableSelfShadowing);
+					if (IsOn(enableSelfShadowing))
+					{
+						PropertyField(selfShadowingIntensity);
+						PropertyField(selfShadowingDistance);
+					}
+				}
+			}
+
+			EndGroup();
+		}
+
+		/// <summary>
+		/// Draws the parameters of the additional lights contribution.
+		/// </summary>
+		private void DrawAdditionalLightsGroup()
+		{
+			if (BeginGroup("AdditionalLights", "Additional Lights"))
+			{
+				PropertyField(enableAdditionalLightsContribution);
+
+				if (IsOn(enableAdditionalLightsContribution))
+				{
+					DrawSubHeader("Self Shadowing");
+					PropertyField(enableAdditionalLightsSelfShadowing);
+					if (IsOn(enableAdditionalLightsSelfShadowing))
+					{
+						PropertyField(additionalLightsSelfShadowingIntensity);
+						PropertyField(additionalLightsSelfShadowingDistance);
+					}
+				}
+			}
+
+			EndGroup();
+		}
+
+		/// <summary>
+		/// Draws the parameters that trade quality for performance.
+		/// </summary>
+		private void DrawPerformanceGroup()
+		{
+			if (BeginGroup("Performance", "Performance & Quality"))
+			{
+				PropertyField(resolution);
+				PropertyField(maxSteps);
+				PropertyField(blurIterations);
+				PropertyField(renderPassEvent);
+			}
+
+			EndGroup();
+		}
+
+	#endregion
+
+	#region Layout Methods
+
+		/// <summary>
+		/// Begins a foldout group whose expanded state is kept between sessions, and returns whether it is expanded.
+		/// </summary>
+		/// <param name="key"></param>
+		/// <param name="label"></param>
+		/// <returns></returns>
+		private static bool BeginGroup(string key, string label)
+		{
+			string prefsKey = FoldoutKeyPrefix + key;
+			bool wasExpanded = EditorPrefs.GetBool(prefsKey, true);
+
+			EditorGUILayout.Space(2.0f);
+			bool isExpanded = EditorGUILayout.BeginFoldoutHeaderGroup(wasExpanded, label);
+
+			if (isExpanded != wasExpanded)
+				EditorPrefs.SetBool(prefsKey, isExpanded);
+
+			return isExpanded;
+		}
+
+		/// <summary>
+		/// Ends the foldout group that was begun last.
+		/// </summary>
+		private static void EndGroup()
+		{
+			EditorGUILayout.EndFoldoutHeaderGroup();
+		}
+
+		/// <summary>
+		/// Draws the label that separates a block of related parameters inside a group.
+		/// </summary>
+		/// <param name="label"></param>
+		private static void DrawSubHeader(string label)
+		{
+			EditorGUILayout.Space(2.0f);
+			EditorGUILayout.LabelField(label, EditorStyles.miniBoldLabel);
+		}
+
+		/// <summary>
+		/// Gets whether the given toggle parameter is both overriden and turned on.
+		/// </summary>
+		/// <param name="parameter"></param>
+		/// <returns></returns>
+		private static bool IsOn(SerializedDataParameter parameter)
+		{
+			return parameter.overrideState.boolValue && parameter.value.boolValue;
 		}
 
 	#endregion

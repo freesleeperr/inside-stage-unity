@@ -145,6 +145,16 @@ Add the `Inside Dither` renderer feature. It runs after post processing, which i
 6. For spot and point lights, add the component `VolumetricAdditionalLight` to those lights that you want to contribute to the volumetric fog.
 7. If you still can not see the fog, play with the different volume parameters or try to increase the intensity of your lights.
 
+## Where the fog lands in the frame
+
+The fog is a screen space pass that marches against the depth buffer, and transparent surfaces are not in that buffer. `Render Pass Event`, at the bottom of the volume override, is where the pass is composited, and it is what decides how the fog and the transparents in a scene meet.
+
+- `After Rendering Skybox` composites the fog before URP copies the camera color into `_CameraOpaqueTexture`. It is the only event at which a transparent surface that rebuilds its background out of that texture, such as water or glass refracting what is behind it, gets a background that already carries the fog, so the surface stays continuous with the fogged room around it. The fog is not laid over the transparents themselves at this event: anything that needs to be fogged from the outside, an unlit sprite or a particle, is left clear.
+- `Before Rendering Transparents` composites the fog after that copy and before the transparents are drawn. The transparents are neither fogged nor given a fogged background, and a surface that replaces what is under it rather than blending with it will erase the fog it covers.
+- `After Rendering Transparents` and `Before Rendering Post Processing`, the default, lay the fog over the transparents. Since the transparents wrote no depth, the fog over them is gathered along the whole ray to the opaque geometry standing behind them, which reads as too much fog at the wrong distance and leaves a visible edge where the surface ends. It is the right choice for thin, additive transparents that should simply be dimmed by the fog in front of them.
+
+There is no event at which a transparent surface is both given a fogged background and fogged over correctly, as that would take the fog knowing its depth. Pick the one that matches what the transparents in the scene are.
+
 ## How to add cloud alike fog
 
 The fog is uniform by default, with only its height driving the density. To turn it into cloudy, volumetric fog:
@@ -218,7 +228,7 @@ A puff placed inside a bank of haze wants `Blend Mode` set to `Additive`. On the
 - Multipass VR rendering is not supported.
 - WebGL is not supported.
 - Not tested on Switch 1/2 and PS4 consoles. Verified by users on Steam Deck, Xbox One/XSX and PS5.
-- Transparent objects are not blended correctly with fog.
+- Transparent objects are not blended correctly with fog. `Render Pass Event` set to `After Rendering Skybox` is the way out for the ones that rebuild their background out of the opaque texture, and the section above is what each of the events costs.
 - Fully baked lights are only supported through APV.
 - Fog is only rendered up to a certain distance from the camera.
 - It may be possible to notice more noise in some light regions at certain view angles.

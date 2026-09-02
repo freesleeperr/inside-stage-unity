@@ -1,6 +1,6 @@
 {
   "name": "com.freesleeperr.insidestage",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "displayName": "Inside Stage VFX",
   "description": "A URP toolkit for building INSIDE style scenes: volumetric light and fog integrated into the volume system, hand placed analytic ambient occlusion and bounce light, planar reflections for wet floors, and an ordered dither and grain pass. The fog supports additional lights, shadows and cookies, local fog areas and animated 3D noise for cloud alike fog.",
   "unity": "2022.3",

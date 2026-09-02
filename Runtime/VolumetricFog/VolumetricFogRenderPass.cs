@@ -205,7 +205,6 @@ namespace FreeSleeperr.InsideStage
 		private RTHandle downsampledCameraDepthRTHandle;
 		private RTHandle volumetricFogRenderRTHandle;
 		private RTHandle volumetricFogBlurRTHandle;
-		private RTHandle volumetricFogUpsampleCompositionRTHandle;
 
 #endif
 
@@ -269,9 +268,6 @@ namespace FreeSleeperr.InsideStage
 			RenderTextureDescriptor cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
 			cameraTargetDescriptor.depthBufferBits = (int)DepthBits.None;
 
-			RenderTextureFormat originalColorFormat = cameraTargetDescriptor.colorFormat;
-			Vector2Int originalResolution = new Vector2Int(cameraTargetDescriptor.width, cameraTargetDescriptor.height);
-
 			int downsampleFactor = GetDownsampleFactor();
 			cameraTargetDescriptor.width /= downsampleFactor;
 			cameraTargetDescriptor.height /= downsampleFactor;
@@ -282,10 +278,8 @@ namespace FreeSleeperr.InsideStage
 			ReAllocateIfNeeded(ref volumetricFogRenderRTHandle, cameraTargetDescriptor, wrapMode: TextureWrapMode.Clamp, name: VolumetricFogRenderRTName);
 			ReAllocateIfNeeded(ref volumetricFogBlurRTHandle, cameraTargetDescriptor, wrapMode: TextureWrapMode.Clamp, name: VolumetricFogBlurRTName);
 
-			cameraTargetDescriptor.width = originalResolution.x;
-			cameraTargetDescriptor.height = originalResolution.y;
-			cameraTargetDescriptor.colorFormat = originalColorFormat;
-			ReAllocateIfNeeded(ref volumetricFogUpsampleCompositionRTHandle, cameraTargetDescriptor, wrapMode: TextureWrapMode.Clamp, name: VolumetricFogUpsampleCompositionRTName);
+			// The composition no longer needs a full resolution target of its own: it draws into the other half of the
+			// color buffer system, which the renderer already owns.
 		}
 
 		/// <summary>
@@ -322,9 +316,13 @@ namespace FreeSleeperr.InsideStage
 
 				volumetricFogMaterial.SetTexture(VolumetricFogTextureId, volumetricFogRenderRTHandle);
 
-				RTHandle cameraColorRt = renderingData.cameraData.renderer.cameraColorTargetHandle;
-				Blitter.BlitCameraTexture(cmd, cameraColorRt, volumetricFogUpsampleCompositionRTHandle, volumetricFogMaterial, volumetricFogUpsampleCompositionPassIndex);
-				Blitter.BlitCameraTexture(cmd, volumetricFogUpsampleCompositionRTHandle, cameraColorRt);
+				// The fogged frame is composed into the other half of the color buffer system and handed to the
+				// renderer as the camera color, which is what the render graph path does with
+				// resourceData.cameraColor. Composing into a target of our own and copying that back over
+				// cameraColorTargetHandle instead only lands while that handle happens to be the buffer the frame
+				// carries on with: a depth prepass, which any feature asking for the normals turns on, is enough for
+				// it not to be, and the whole of the fog was thrown away with the copy.
+				Blit(cmd, ref renderingData, volumetricFogMaterial, volumetricFogUpsampleCompositionPassIndex);
 			}
 
 			context.ExecuteCommandBuffer(cmd);
@@ -912,7 +910,6 @@ namespace FreeSleeperr.InsideStage
 			downsampledCameraDepthRTHandle?.Release();
 			volumetricFogRenderRTHandle?.Release();
 			volumetricFogBlurRTHandle?.Release();
-			volumetricFogUpsampleCompositionRTHandle?.Release();
 		}
 
 #endif
