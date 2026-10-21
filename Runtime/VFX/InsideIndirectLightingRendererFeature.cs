@@ -446,7 +446,7 @@ namespace FreeSleeperr.InsideStage
 			if (evaluatePass == null || compositePass == null)
 				return;
 
-			if (renderingData.cameraData.cameraType == CameraType.Preview)
+			if (!ShouldRenderForCamera(in renderingData.cameraData))
 				return;
 
 			if (settings.occlusionIntensity <= 0.0f && settings.bounceIntensity <= 0.0f)
@@ -466,6 +466,9 @@ namespace FreeSleeperr.InsideStage
 		public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
 		{
 			if (compositePass == null)
+				return;
+
+			if (!ShouldRenderForCamera(in renderingData.cameraData))
 				return;
 
 			compositePass.SetSource(renderer.cameraColorTargetHandle);
@@ -492,6 +495,28 @@ namespace FreeSleeperr.InsideStage
 	#endregion
 
 	#region Methods
+
+		/// <summary>
+		/// Whether the frame being set up is one the hand placed indirect lighting belongs in. It belongs in the game
+		/// view and, so that the artist composing the shapes can see what they are composing, in the scene view. It does
+		/// not belong in a preview, in a reflection probe bake, or in one of the depth only offscreen cameras other
+		/// effects render for themselves - the volumetric beams render one of those per beam to gather their occlusion,
+		/// and such a camera has no color target for the composite to read in the first place. URP sets those up through
+		/// a shortcut path in <c>UniversalRenderer.Setup</c> that calls <see cref="SetupRenderPasses"/> before the
+		/// pipeline is marked as executing, so asking the renderer for its color target there logs an error every time
+		/// one of them renders.
+		/// </summary>
+		/// <param name="cameraData"></param>
+		/// <returns></returns>
+		static bool ShouldRenderForCamera(in CameraData cameraData)
+		{
+			if (cameraData.cameraType != CameraType.Game && cameraData.cameraType != CameraType.SceneView)
+				return false;
+
+			var target = cameraData.targetTexture;
+
+			return target == null || target.format != RenderTextureFormat.Depth;
+		}
 
 		/// <summary>
 		/// Validates the resources used by the indirect lighting passes, and resolves the shader while in the editor so

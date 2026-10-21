@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.14.1] - 2026-10-21
+
+- Fixed `Inside Indirect Lighting` logging an error every time a depth only offscreen camera rendered, such as the one the volumetric beams render per beam to gather their occlusion. URP sets those cameras up through a shortcut path in `UniversalRenderer.Setup` that calls `SetupRenderPasses` before the pipeline is marked as executing, so asking the renderer for its color target there failed. The feature now only enqueues its passes for the game view and the scene view, and skips any camera rendering into a depth only target, which has no color for the composite to read in the first place.
+
 ## [0.14.0] - 2026-09-02
 
 - New `After Rendering Skybox` option on `Render Pass Event`, which is the only one that gets the fog into a transparent surface that rebuilds its background out of `_CameraOpaqueTexture`. Water and glass read that texture to refract what stands behind them, and URP copies it right after the skybox, so at every event the fog had until now it was composited after that copy had already been taken: the background those shaders pulled in was the unfogged frame. The fog was then laid over the surface from the outside, at the depth of whatever opaque geometry stood behind it, since a transparent that writes no depth is not in the buffer the fog marches against. A tank of water came out as a rectangle of haze gathered over the twenty metres to the wall behind it, with a hard edge against the correctly fogged room around it, and the water was fogged twice over: once by the pass and once by its own absorption of a background that should have carried the fog already.
